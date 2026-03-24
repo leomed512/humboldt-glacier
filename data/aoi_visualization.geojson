@@ -1,0 +1,41 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Visualization AOI",
+        "area_km2": 25.0,
+        "purpose": "Geographic context",
+        "description": "Extended area for maps and 3D visualizations"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -71.02021478567892,
+              8.529666220919108
+            ],
+            [
+              -70.97163461600118,
+              8.529666220919108
+            ],
+            [
+              -70.97163461600118,
+              8.576517837930535
+            ],
+            [
+              -71.02021478567892,
+              8.576517837930535
+            ],
+            [
+              -71.02021478567892,
+              8.529666220919108
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

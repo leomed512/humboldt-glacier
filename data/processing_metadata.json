@@ -1,0 +1,186 @@
+{
+  "period_requested": "2015-2026",
+  "period_effective": "2019-2026",
+  "total_years_requested": 12,
+  "years_processed": 8,
+  "years_excluded": [
+    2015,
+    2016,
+    2017,
+    2018
+  ],
+  "years_adjusted": [],
+  "completeness_percent": 66.7,
+  "temporal_interpretation": {
+    "year_meaning": "End of dry season window",
+    "window_definition": "December 15 (year-1) to March 15 (year)",
+    "rationale": "Year assigned represents when dry season ends, capturing minimum seasonal snow conditions",
+    "examples": {
+      "2019": "Dec 15, 2018 to Mar 15, 2019",
+      "2020": "Dec 15, 2019 to Mar 15, 2020",
+      "2025": "Dec 15, 2024 to Mar 15, 2025",
+      "2026": "Dec 15, 2025 to Mar 15, 2026"
+    }
+  },
+  "processing_parameters": {
+    "temporal_window": {
+      "start_formula": "December 15 (year - 1)",
+      "end_formula": "March 15 (year)",
+      "nominal_duration_days": 90,
+      "minimum_duration_days": 30,
+      "adjustment_rule": "If end date exceeds present, adjust to current date"
+    },
+    "ndsi_threshold": 0.4,
+    "cloud_coverage_max": 60,
+    "spatial_resolution": "20m",
+    "sensor": "Sentinel-2 SR Harmonized",
+    "collection": "COPERNICUS/S2_SR_HARMONIZED"
+  },
+  "rgb_export": {
+    "year": 2025,
+    "file": "data/2025_rgb.tif",
+    "aoi": "visualization",
+    "bands": [
+      "B4_Red",
+      "B3_Green",
+      "B2_Blue"
+    ],
+    "scale_m": 10,
+    "visualization": {
+      "min": 0,
+      "max": 3000,
+      "gamma": 1.4
+    },
+    "note": "Used as base for comparative image (Script 02)"
+  },
+  "aoi_processing": {
+    "area_km2": 4.09,
+    "purpose": "Metrics calculation",
+    "bounds": "See aoi_humboldt.geojson"
+  },
+  "aoi_visualization": {
+    "area_km2": 25.0,
+    "purpose": "Geographic context",
+    "bounds": "See aoi_visualization.geojson"
+  },
+  "exclusion_reasons": {
+    "no_images": "No Sentinel-2 images available in temporal window",
+    "window_in_future": "Entire window in future relative to processing date",
+    "window_insufficient": "Less than 30 days of data available",
+    "high_clouds": "All images exceeded 60% cloud coverage",
+    "note": "Years excluded are documented - NO fake data generated"
+  },
+  "data_quality": {
+    "avg_images_per_year": 11.2,
+    "avg_valid_pixels_pct": 100.0,
+    "years_high_quality": 8,
+    "years_medium_quality": 0,
+    "years_low_quality": 0
+  },
+  "year_classification": {
+    "method": "Threshold based on permanent glacier area",
+    "reference": "Ram\u00edrez et al. (2020)",
+    "ramirez_glacier_km2": 0.046,
+    "firn_factor": 1.2,
+    "threshold_km2": 0.055,
+    "justification": "Ramirez permanent glacier area plus 20% margin for residual firn and methodological differences",
+    "interpretation": {
+      "wet_years": "Area > 0.055 km\u00b2 (seasonal snow + glacier)",
+      "dry_years": "Area \u2264 0.055 km\u00b2 (glacier + residual firn)"
+    }
+  },
+  "glacier_polygons": {
+    "generated": 8,
+    "years_available": [
+      2019,
+      2020,
+      2021,
+      2022,
+      2023,
+      2024,
+      2025,
+      2026
+    ],
+    "files": {
+      "2019": "data/glacier_polygons/2019.geojson",
+      "2020": "data/glacier_polygons/2020.geojson",
+      "2021": "data/glacier_polygons/2021.geojson",
+      "2022": "data/glacier_polygons/2022.geojson",
+      "2023": "data/glacier_polygons/2023.geojson",
+      "2024": "data/glacier_polygons/2024.geojson",
+      "2025": "data/glacier_polygons/2025.geojson",
+      "2026": "data/glacier_polygons/2026.geojson"
+    }
+  },
+  "processing_info": {
+    "processing_date": "2026-03-24 14:34:56",
+    "gee_project": " ",
+    "python_packages": {
+      "earthengine-api": "1.7.16",
+      "pandas": "2.3.3"
+    }
+  },
+  "references": {
+    "ndsi_method": "Hall et al. (1995) - Remote Sensing of Environment",
+    "validation": "Ram\u00edrez et al. (2020) - Arctic, Antarctic, and Alpine Research",
+    "best_practices": "WGMS, USGS Landsat, ESA Copernicus guidelines"
+  },
+  "model_b": {
+    "type": "exponential",
+    "description": "Dry years only (excludes wet years with seasonal snow)",
+    "equation": "A(t) = 0.022707 \u00d7 exp(-0.268541 \u00d7 (t - 2020))",
+    "rate_percent_per_year": -26.85,
+    "r_squared": 0.863,
+    "years_used": [
+      2020,
+      2021,
+      2022,
+      2023,
+      2024,
+      2025
+    ],
+    "years_excluded_wet": [
+      2019,
+      2026
+    ],
+    "n_years": 6,
+    "parameters": {
+      "a": 0.022707291182843276,
+      "k": -0.2685410996611245,
+      "t0": 2020
+    },
+    "thresholds": {
+      "glacier_definition_km2": 0.005,
+      "glacier_definition_source": "Huss & Fischer 2016",
+      "practical_disappearance_km2": 0.0001,
+      "practical_disappearance_note": "Area below Sentinel-2 detection"
+    },
+    "uncertainty": {
+      "model_rmse_km2": 0.0056,
+      "confidence_interval_95pct_km2": 0.0109
+    },
+    "projections": {
+      "glacier_threshold": {
+        "year": 2025.6,
+        "threshold_km2": 0.005,
+        "uncertainty_years": 2,
+        "valid": true
+      },
+      "total_disappearance": {
+        "year": 2040.2,
+        "threshold_km2": 0.0001,
+        "uncertainty_years": 3,
+        "valid": true
+      }
+    }
+  },
+  "comparative_image": {
+    "file": "results/plots/comparison_2020_2025.png",
+    "area_2020_km2": 0.057774,
+    "area_2025_km2": 0.009433,
+    "loss_km2": 0.048341,
+    "loss_percent": 83.67,
+    "annual_rate_percent": 16.73,
+    "time_span_years": 5
+  }
+}

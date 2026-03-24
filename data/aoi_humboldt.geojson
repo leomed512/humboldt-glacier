@@ -1,0 +1,41 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Processing AOI",
+        "area_km2": 4.09,
+        "purpose": "Metrics calculation",
+        "description": "Reduced area focused on glacier zone"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -71.0079,
+              8.53973
+            ],
+            [
+              -70.988288,
+              8.53973
+            ],
+            [
+              -70.988288,
+              8.55679
+            ],
+            [
+              -71.0079,
+              8.55679
+            ],
+            [
+              -71.0079,
+              8.53973
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

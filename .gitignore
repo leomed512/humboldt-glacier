@@ -1,0 +1,105 @@
+# =========================
+# VIRT ENV
+# =========================
+venv/
+.venv/
+env/
+gee_env/
+conda_env/
+
+# =========================
+# PYTHON
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/*
+*.ipynb_checkpoints
+
+# =========================
+# SECRETS Y CREDENTIALS
+# =========================
+.env
+.env.local
+*.env
+credentials.json
+service-account-key.json
+gee-credentials.json
+*-credentials.json
+.streamlit/secrets.toml
+
+# =========================
+# IDEs
+# =========================
+.vscode/
+*.code-workspace
+.idea/
+*.iml
+.jupyter/
+.spyderproject
+.spyproject
+
+# =========================
+# SYS / TEMP
+# =========================
+*~
+.directory
+*.tmp
+*.temp
+*.log
+*.bak
+*.swp
+*.swo
+temp/
+tmp/
+outputs/temp/
+
+# =========================
+# BUILD / TEST
+# =========================
+dist/
+build/
+*.egg-info/
+*.egg
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# =========================
+# GOOGLE EARTH ENGINE / CACHE
+# =========================
+ee-output/
+gee-cache/
+
+# =========================
+# GEO / RASTER 
+# =========================
+*.tif
+*.tiff
+*.geotiff
+
+# =========================
+# IMGS
+# =========================
+*.png
+
+assets/*
+
+# =========================
+# STREAMLIT EXCEPTIONS
+# =========================
+
+!data/snow_stats_2015_2026.csv
+!data/processing_metadata.json
+!data/humboldt_dem_30m.tif
+
+!data/glacier_polygons/
+!data/glacier_polygons/*.geojson
+!data/aoi_humboldt.geojson
+!data/aoi_visualization.geojson
+
+!results/plots/
+!results/plots/*.png
