@@ -407,31 +407,39 @@ col4.metric(
     help="Tasa anual de retroceso según modelo exponencial ajustado a años secos."
 )
 
-with st.expander("Metodología del análisis geoespacial", icon=":material/info:"):
+with st.expander("**Metodología del análisis geoespacial**", icon=":material/info:"):
     st.markdown(f"""
-Este estudio cuantifica la dinámica reciente del área de hielo y nieve utilizando 
-imágenes satelitales **Sentinel-2**, una premáscara espectral NDSI y **desmezclado espectral lineal** (fully constrained linear spectral unmixing) 
-para estimar la cobertura de nieve a nivel sub-píxel. 
+Este estudio cuantifica la dinámica reciente del área de hielo y nieve mediante imágenes satelitales **Sentinel-2**, combinando una **pre-máscara espectral basada en NDSI** con **desmezclado espectral lineal totalmente restringido** (*Fully Constrained Linear Spectral Unmixing, FCLSU*) para estimar la cobertura de nieve a nivel subpíxel. El script usa el valor refinado con el FCLSU como métrica principal del estudio y compara ese resultado con el método NDSI tradicional. 
 
-Inicialmente se utilizó el método convencional NDSI (Índice de Diferencia Normalizada de Nieve) que debido a la naturaleza del índice, el tamaño reducido del glaciar y la resolución espacial de la banda SWIR (20 m) terminó sobrestimando la cobertura de nieve. 
-                
-Para corregirlo, se implementó el **Desmezclado Espectral** que descompone cada píxel en fracciones de nieve, roca y vegetación, permitiendo una estimación más precisa del área en los bordes del glaciar donde los píxeles mixtos dominan (Painter et al., 2009; Sirguey et al., 2009). Se calibró el modelo a partir de píxeles puros sobre cobertura identificada
-en el área de estudio mediante fotointerpretación en QGIS, y validados por separabilidad 
-espectral (>21° en todos los pares). 
+#### **Enfoque inicial: estimación de superficie nival mediante NDSI**
 
-Posteriormente, para aumentar la precisión de esta técnica, se implementó una **pre-máscara espectral NDSI** (>0.2) para aplicar el unmixing solo en las zonas en donde el NDSI indicara presencia de nieve/hielo. Posteriormente generaron 2 métricas:
-                
-- **Subpixel unmixing:** suma de todas las fracciones × área del píxel. Un píxel con fracción 0.6 contribuye 240 m². Este es el valor principal utilizado en el estudio.
-                
-- **Binary pixel counting:** cuenta los píxeles donde la fracción de unmixing es ≥ 0.5 y los multiplica por 400 m². Un píxel con fracción 0.6 contribuye 400 m², uno con fracción 0.4 contribuye 0 m².
-                
- Con la primera de estas, se aumentó la precisión inicial de las estimaciones de superficie con nieve/hielo en +36%, confirmando que el unmixing aporta más precisión crucial en los bordes del glaciar en fase terminal, donde la proporción de píxeles mixtos es mayor. 
-                
+Inicialmente se utilizó el método convencional NDSI (*Normalized Difference Snow Index*). Sin embargo, debido a la naturaleza del índice, al reducido tamaño del glaciar y a la resolución espacial de la banda SWIR (20 m), este enfoque tiende a **sobrestimar la superficie glaciar**, principalmente por la inclusión de nieve estacional y por la presencia de píxeles mixtos en los bordes.
 
-Para la **serie multitemporal** se evaluaron datos desde 2019 hasta 2026 (8 años) durante la época de sequía (diciembre-marzo), cuando la cobertura de hielo es más representativa. Los años 2019 y 2026 fueron excluidos del modelo por presentar nieve estacional elevada, **confirmada por guías de montaña** [UGAM](https://www.instagram.com/ugamvenezuela/).
+#### **Desmezclado espectral (Spectral Unmixing)**
 
-Se buscó obtener datos desde 2015 pero la zona presentó nubosidad que imposibilitó 
-la adquisición de imágenes viables para 2015-2018. Se trabaja actualmente en técnicas para obtener información sobre estos años y mejorar el modelo predictivo para mejor monitoreo automatizado a futuro.
+Para corregir este sesgo, se implementó el **desmezclado espectral**, que descompone cada píxel en fracciones de nieve, roca y vegetación, permitiendo una estimación más realista en zonas del borde irregular del glaciar donde predominan los píxeles mixtos (Painter et al., 2009; Sirguey et al., 2009)
+
+El modelo fue calibrado a partir de puntos de referencia identificados en el área de estudio mediante fotointerpretación en QGIS y validados mediante análisis de separabilidad espectral. Posteriormente, para aumentar su robustez, se aplicó una **pre-máscara NDSI (> 0.2)** con el fin de ejecutar el unmixing únicamente en las zonas con alta probabilidad de presencia de nieve o hielo.
+
+A partir de este procedimiento se derivaron dos métricas:
+
+- **Sub-pixel unmixing:** suma de las fracciones estimadas de cada cobertura multiplicadas por el área del píxel. Esta es la **métrica principal** del estudio.
+- **Binary unmixing:** conteo de píxeles con fracción de nieve ≥ 0.5, multiplicados por el área total del píxel.
+
+
+#### **Mejoría de la estimación mediante FCLSU**
+
+La utilidad del desmezclado espectral se evidencia al comparar sus resultados de 2020 con la estimación original basada en NDSI y con la referencia independiente de Ramírez et al. (2020) para el año 2019. Salvando las diferencias metodológicas y temporales, la comparación sigue siendo valiosa porque el glaciar se encuentra en una fase de retroceso acelerado, por lo que un incremento de superficie entre 2019 y 2020 resultaría físicamente poco probable. 
+                
+Bajo ese criterio, el valor estimado por FCLSU se aproxima más al orden de magnitud esperado y **reduce en 36.1% la sobreestimación inicialmente observada con el NDSI**.
+
+#### **Análisis multitemporal**
+
+Para la serie multitemporal se analizaron datos entre **2019 y 2026** (8 años) durante la estación seca (diciembre-marzo), cuando la cobertura de hielo es más representativa. Los años 2019 y 2026 fueron excluidos del modelo por presentar nieve estacional elevada, lo cual fue **confirmado por guías de montaña** [UGAM](https://www.instagram.com/ugamvenezuela/). De hecho, un análisis exploratorio de la distribución temporal, clasificó cuantitativamente a estos como años **“atípicos”**, usando un umbral de **0.060 km²**, estimado por IQR.
+                
+Se buscó además incorporar observaciones desde 2015, pero esos años fueron omitidos por ausencia de imágenes Sentinel-2 utilizables por la alta nubosidad en el área. Se trabaja actualmente en técnicas para obtener información sobre estos años y mejorar el modelo predictivo para mejor monitoreo automatizado a futuro.
+                
+**Procedimiento detallado en Python disponible en el repositorio de** [GitHub](https://github.com/leomed512/humboldt-glacier)
                 
 """)
 
@@ -439,7 +447,7 @@ st.markdown("---")
 
 
 # ============================================================================
-# PROJECTION (IMAGE)
+# PROJECTION GRAPH
 # ============================================================================
 
 st.markdown("""
@@ -447,19 +455,19 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Projection plot image
-projection_img_path = 'results/plots/03_proyeccion.png'
+projection_img_path = 'results/plots/03_proyection.png'
 if Path(projection_img_path).exists():
     st.image(projection_img_path, width="stretch")
 
-# Note about wet years and Ramírez
 area_2020_val = df.loc[df['year'] == 2020, 'snow_area_km2'].values[0] if 2020 in df['year'].values else None
 if area_2020_val:
     diff_ramirez = ((area_2020_val - 0.046) / 0.046) * 100
     st.markdown(
-        f"**Nota:** Años húmedos ({', '.join(map(str, df_wet['year'].tolist()))}) "
-        f"presentan nieve estacional inusual y fueron excluidos del modelo. "
-        f"Puntos verdes: Ramírez et al. (2020). "
-        f"Variación comparable: +{diff_ramirez:.1f}% (2020 vs Ramírez 2019)."
+
+        f"**Puntos verdes**: Ramírez et al. (2020). "
+        f"**Variación entre estudios**: +{diff_ramirez:.1f}% (2020 vs Ramírez 2019)."
+        f"** Nota:** Años húmedos ({', '.join(map(str, df_wet['year'].tolist()))}) "
+        f"presentan nieve estacional inusual y fueron excluidos del modelo predictivo. "
     )
 
 # Reclassification
@@ -469,13 +477,19 @@ reclass_unc = reclass_info.get('uncertainty_years', 2)
 
 if reclass_year:
     st.warning(
-        f"**Reclasificación:** Con tasa actual de {model_rate:.2f}%/año, "
+        f"**Proyección:** Con la tasa actual de {model_rate:.2f}%/año, "
         f"el glaciar dejará de calificar como tal en **~{int(reclass_year)}** "
         f"(±{reclass_unc} años), pasando a ser un **parche de hielo** "
-        f"según Huss & Fischer (2016).",
+        f"según la clasificación de Huss & Fischer (2016).",
         icon=":material/warning:"
     )
-
+# Model info
+uncertainty = model_info.get('uncertainty', {})
+st.info(
+    f"**Modelo:** Exponencial · Años secos ({min(model_years)}-{max(model_years)}, n={len(model_years)}) · "
+    f"R² = {model_r2:.3f} · RMSE = ±{uncertainty.get('model_rmse_km2', 0.0):.4f} km²",
+    icon=":material/info:"
+)
 # Disappearance
 disappear_info = model_projections.get('disappearance', {})
 disappear_year = disappear_info.get('year')
@@ -489,19 +503,13 @@ if disappear_year:
         icon=":material/error:"
     )
 
-# Model info
-uncertainty = model_info.get('uncertainty', {})
-st.info(
-    f"**Modelo:** Exponencial · Años secos ({min(model_years)}-{max(model_years)}, n={len(model_years)}) · "
-    f"R² = {model_r2:.3f} · RMSE = ±{uncertainty.get('model_rmse_km2', 0.0):.4f} km²",
-    icon=":material/info:"
-)
+
 
 # ── Technical expanders ───────────────────────────────────────────────
 
 with st.expander("Selección del modelo", icon=":material/compare:"):
     st.markdown(f"""
-Para explicar el comportamiento actual y a futuro de la dinámica del cuerpo de hielo se evaluaron varios modelos predictivos: exponencial, lineal y polinomial sobre los años secos (n={len(model_years)}) ya que la nieve estacional abundante de 2019 y 2026 destruía la confiabilidad de los modelos.
+Para explicar el comportamiento actual y a futuro de la dinámica del cuerpo de hielo se evaluaron varios modelos predictivos: **exponencial, lineal y polinomial** sobre los años secos (n={len(model_years)}) ya que la nieve estacional abundante de 2019 y 2026 destruía la confiabilidad de los modelos.
 La selección se realizó mediante **AICc** (Akaike Information Criterion corregido para muestras pequeñas, 
 Burnham & Anderson, 2002).
 
@@ -515,10 +523,10 @@ físicamente coherentes.
 
 # ── Analysis plots expander ───────────────────────────────────────────
 
-with st.expander("Gráficos del análisis", icon=":material/bar_chart:"):
+with st.expander("Gráficos del análisis adicionales", icon=":material/bar_chart:"):
     
     # Serie temporal
-    serie_path = 'results/plots/01_serie_temporal.png'
+    serie_path = 'results/plots/01_time_series.png'
     if Path(serie_path).exists():
         st.markdown("**Evolución temporal**")
         st.image(serie_path, width="stretch")
@@ -531,32 +539,31 @@ with st.expander("Gráficos del análisis", icon=":material/bar_chart:"):
         st.markdown("---")
     
     # Variabilidad y anomalías
-    var_path = 'results/plots/02_variabilidad_anomalias.png'
+    var_path = 'results/plots/02_annual_variability.png'
     if Path(var_path).exists():
         st.markdown("**Variabilidad interanual y anomalías**")
         st.image(var_path, width="stretch")
         st.caption(
             "**Panel superior:** cambio absoluto año a año. La caída más abrupta ocurrió entre 2019-2020 "
-            "(-73%), seguida de una relativa estabilización 2021-2023 y nueva caída en 2024-2025. El año 2026 vuelve a mostrar presencial de gran cantidad de nieve estacional. \n\n"
+            "(-73%), seguida de una relativa estabilización 2021-2023 y nueva caída en 2024-2025. El año 2026 vuelve a mostrar presencia de gran cantidad de nieve estacional. \n\n"
 
-            "**Panel inferior:** desviación de cada año respecto al modelo exponencial. "
+            "**Panel inferior:** desviación de la estimación de cada año respecto al modelo exponencial. "
             "Los años húmedos (barras azules) representan anomalías positivas por nieve estacional."
         )
         st.markdown("---")
     
     # Comparación de métodos
-    comp_path = 'results/plots/04_comparacion_metodos.png'
+    comp_path = 'results/plots/04_method_comparision.png'
     if Path(comp_path).exists():
         st.markdown("**Comparación de métodos de estimación**")
         st.image(comp_path, width="stretch")
         st.caption(
-            "**Panel superior**: muestra el área estimada por cada método para cada año. Las barras naranjas (unmixing) y grises (conteo de píxeles con NDSI) son muy similares en los años con glaciar más grande (2019-2023), pero divergen visiblemente en 2024-2025, donde el glaciar es más pequeño y los bordes mixtos representan una proporción mayor del área total. \n\n"
+            "**Panel superior**: presenta la evolución del área glaciar estimada mediante tres enfoques: NDSI, unmixing binario y FCLSU subpíxel. El método NDSI reporta consistentemente valores superiores, evidenciando una tendencia a sobreestimar la cobertura nival. En contraste, los enfoques basados en desmezclado espectral (especialmente FCLSU -utilizada como métrica principal-) generan estimaciones más conservadoras al modelar explícitamente la fracción de nieve dentro de cada píxel. \n\n"
 
-             "**Panel inferior**: muestra cuánto estima (+/-) el unmixing respecto al conteo de píxeles con NDSI (%). Las barras rojas (negativas) indican que el unmixing es más conservador — asigna menos área porque en los bordes, donde un píxel es 60% nieve y 40% roca, el conteo de píxeles cuenta 400 m² mientras el unmixing cuenta 240 m². \n\n" 
+             "Panel inferior: muestra cuánto corrige el FCLSU respecto al NDSI (%). Todos los valores son negativos, lo que indica que el unmixing reduce el área estimada al tratar los píxeles mixtos de forma fraccional en lugar de contarlos completos. \n\n" 
              "" 
-             "Las barras verdes (positivas) indican lo contrario: píxeles con fracción entre 0.2 y 0.49 que el conteo descarta pero el unmixing suma como contribución parcial. \n\n" 
-             "" 
-             "La línea punteada amarilla marca la media de -3.6%, confirmando que en promedio el unmixing es ligeramente más conservador. La corrección se amplifica en 2024-2025, exactamente cuando el glaciar está en su fase más pequeña y la precisión sub-píxel es más relevante."
+
+             "La línea punteada marca el promedio (~-16.7%), en que el NDSI sobreestima el área glaciar. Esta corrección es mayor en los últimos años, cuando el glaciar es más pequeño y los bordes (píxeles mixtos) influyen más."
         )
 
 st.markdown("---")
@@ -665,15 +672,13 @@ Este análisis se comparó con **Ramírez et al. (2020)**,
 publicado en *Arctic, Antarctic, and Alpine Research*.
 
 La variación de +{diff_pct:.1f}% es consistente con las diferencias de resolución espacial 
-(fotogrametría submétrica vs Sentinel-2 a 10-20 m) y año de referencia (2019 vs 2020), 
-validando la tendencia observada.
+(fotogrametría submétrica vs Sentinel-2 a 10-20 m) y año de referencia (2019 vs 2020*), ambos se encuentran en un rango coherente.
 
-### Comparación puntual
-- **Ramírez et al. (2020):** Para 2019 reportaron **0.046 km²** (fotointerpretación manual)
+- **Ramírez et al. (2020):** Para 2019 reportaron **0.046 km²** (fotointerpretación manual )
 - **Este estudio (2020):** **{area_2020_val:.4f} km²** (desmezclado espectral sub-píxel Sentinel-2)
 - **Variación:** **+{diff_pct:.1f}%**
 
-Se eligió 2020 como punto de comparación debido a que 2019 presentó cobertura extrema de nieve 
+* Se eligió 2020 como punto de comparación debido a que 2019 presentó cobertura elevada de nieve 
 estacional, **confirmado por reportes de campo de guías de montaña** 
 [UGAM](https://www.instagram.com/ugamvenezuela/).
 
@@ -699,7 +704,7 @@ st.markdown(
         <a href="https://github.com/leomed512/humboldt-glacier" 
            target="_blank" 
            style="text-decoration: none; color: #9aa0a6;">
-           🐙 GitHub • Leonardo Medina
+           GitHub • Leonardo Medina
         </a>
     </div>
     """,

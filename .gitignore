@@ -80,6 +80,7 @@ gee-cache/
 *.tif
 *.tiff
 *.geotiff
+*.aux.xml
 
 # =========================
 # IMGS

@@ -219,19 +219,19 @@ try:
             plot_polygon(ax, gdf_2020, '#e74c3c', 1)
             plot_polygon(ax, gdf_2025, '#3498db', 0.9)
             text_x, text_y_start = 0.98, 0.7
-            ax.text(text_x, text_y_start, 'GLACIER RETREAT\n2020-2025',
+            ax.text(text_x, text_y_start, 'RETROCESO GLACIAR\n2020-2025',
                    transform=ax.transAxes, fontsize=14, fontweight='bold', color='white', ha='right', va='top')
             ax.text(text_x, text_y_start - 0.05, f'{loss_pct_img:.1f}%',
                    transform=ax.transAxes, fontsize=28, fontweight='bold', color='white', ha='right', va='top')
-            stats_text = (f'\nArea 2020: {area_2020:.4f} km²\n'
-                         f'Area 2025: {area_2025:.4f} km²\n'
-                         f'Loss: {area_2020 - area_2025:.4f} km²\n\n'
-                         f'Annual rate: {loss_pct_img/5:.1f}%/year')
+            stats_text = (f'\nÁrea 2020: {area_2020:.4f} km²\n'
+                         f'Área 2025: {area_2025:.4f} km²\n'
+                         f'Pérdida: {area_2020 - area_2025:.4f} km²\n\n'
+                         f'Tasa anual: {loss_pct_img/5:.1f}%/año')
             ax.text(text_x, text_y_start - 0.20, stats_text, transform=ax.transAxes, fontsize=12,
                    color='white', ha='right', va='top', family='monospace',
                    bbox=dict(boxstyle='round,pad=0.5', facecolor='black', alpha=0.75))
-            ax.legend(handles=[Line2D([0],[0],color='#e74c3c',lw=2,label='Glacier 2020'),
-                               Line2D([0],[0],color='#3498db',lw=2,label='Glacier 2025')],
+            ax.legend(handles=[Line2D([0],[0],color='#e74c3c',lw=2,label='Glaciar 2020'),
+                               Line2D([0],[0],color='#3498db',lw=2,label='Glaciar 2025')],
                      loc='lower right', fontsize=11, frameon=True, facecolor='white', edgecolor='black', framealpha=0.9)
             ax.set_xlabel(''); ax.set_ylabel('')
             ax.set_title('Pico Humboldt - Venezuela', fontsize=18, fontweight='bold', pad=15)
@@ -271,26 +271,26 @@ ax.plot(df['year'], df['snow_area_km2'],
 
 years_fit = np.linspace(initial_year_dry, final_year, 100)
 ax.plot(years_fit, exp_model(years_fit, *popt), '-', color=COLORS['trend'],
-       linewidth=2, label=f'Exponential (R²={r2:.2f}, {rate_pct:.1f}%/year)', zorder=2)
+       linewidth=2, label=f'Modelo Exponencial (R²={r2:.2f}, {rate_pct:.1f}%/año)', zorder=2)
 
 ramirez_years = [2018, 2019]
 ramirez_areas = [0.079, 0.046]
 ax.scatter(ramirez_years, ramirez_areas, s=70, marker='D', color=COLORS['reference'],
           label='Ramírez et al. 2020', zorder=4, alpha=0.9, edgecolors='white', linewidth=0.5)
 
-ax.scatter([], [], s=50, color=COLORS['wet'], marker='o', label='Wet years (excluded)')
-ax.scatter([], [], s=50, color=COLORS['dry'], marker='s', label='Dry years')
+ax.scatter([], [], s=50, color=COLORS['wet'], marker='o', label='Años húmedos (excluídos)')
+ax.scatter([], [], s=50, color=COLORS['dry'], marker='s', label='Años secos')
 
-ax.set_xlabel('Year')
-ax.set_ylabel('Snow area (km²)')
-ax.set_title(f'Temporal evolution - Pico Humboldt Glacier ({initial_year}-{final_year})', fontweight='bold')
+ax.set_xlabel('Año')
+ax.set_ylabel('Cobertura de nieve (km²)')
+ax.set_title(f'Evolución Temporal - Glaciar Pico Humboldt ({initial_year}-{final_year})', fontweight='bold')
 ax.legend(loc='upper right', fontsize=8)
 ax.grid(True, alpha=0.3)
 
 sns.despine()
 plt.tight_layout()
-plt.savefig('results/plots/01_serie_temporal.png', dpi=300, bbox_inches='tight')
-print('  01_serie_temporal.png')
+plt.savefig('results/plots/01_time_series.png', dpi=300, bbox_inches='tight')
+print('  01_time_series.png')
 plt.close()
 
 # ── PLOT 2: Variability + Anomalies ──────────────────────────────────
@@ -310,8 +310,8 @@ for bar, pct in zip(bars, changes_pct[1:]):
             ha='center', va='bottom' if h > 0 else 'top', fontsize=8, alpha=0.7)
 
 ax1.axhline(0, color='black', linewidth=0.8, alpha=0.5)
-ax1.set_ylabel('Annual change (km²)')
-ax1.set_title('Interannual variability', fontweight='bold')
+ax1.set_ylabel('Cambio anual (km²)')
+ax1.set_title('Variabilidad Interanual', fontweight='bold')
 ax1.grid(True, alpha=0.3)
 
 residuals_all = df['snow_area_km2'] - exp_model(df['year'], *popt)
@@ -319,9 +319,9 @@ residual_colors = [COLORS['wet'] if r > 0 else COLORS['dry'] for r in residuals_
 ax2.bar(df['year'], residuals_all, color=residual_colors,
        edgecolor='white', linewidth=0.5, alpha=0.8)
 ax2.axhline(0, color='black', linewidth=0.8, alpha=0.5)
-ax2.set_xlabel('Year')
-ax2.set_ylabel('Deviation (km²)')
-ax2.set_title('Anomalies relative to exponential model', fontweight='bold')
+ax2.set_xlabel('Año')
+ax2.set_ylabel('Desviación (km²)')
+ax2.set_title('Anomalías Respecto al Modelo Exponencial', fontweight='bold')
 ax2.grid(True, alpha=0.3)
 
 for year, res in zip(df['year'], residuals_all):
@@ -331,8 +331,8 @@ for year, res in zip(df['year'], residuals_all):
 
 sns.despine()
 plt.tight_layout()
-plt.savefig('results/plots/02_variabilidad_anomalias.png', dpi=300, bbox_inches='tight')
-print('  02_variabilidad_anomalias.png')
+plt.savefig('results/plots/02_annual_variability.png', dpi=300, bbox_inches='tight')
+print('  02_annual_variability.png')
 plt.close()
 
 # ── PLOT 3: Projection ──────────────────────────────────────────────
@@ -343,9 +343,9 @@ ax.set_xticks(all_years_range[::2])
 ax.set_xticklabels([str(a) for a in all_years_range[::2]], rotation=45, ha='right')
 
 ax.scatter(df_dry['year'], df_dry['snow_area_km2'], s=60, color=COLORS['dry'],
-          marker='s', label='Dry years (model input)', zorder=6, alpha=0.9)
+          marker='s', label='Años normales', zorder=6, alpha=0.9)
 ax.scatter(wet_years['year'], wet_years['snow_area_km2'], s=40, color=COLORS['wet'],
-          marker='o', label='Wet years (excluded)', zorder=5, alpha=0.5)
+          marker='o', label='Años húmedos (excluídos)', zorder=5, alpha=0.5)
 
 years_extended = np.arange(initial_year_dry, plot_year_limit + 1, 0.1)
 areas_proj = exp_model(years_extended, *popt)
@@ -354,13 +354,13 @@ mask_hist = years_extended <= final_year
 mask_fut = years_extended >= final_year
 
 ax.plot(years_extended[mask_hist], areas_proj[mask_hist], '-', color=COLORS['trend'],
-       linewidth=2.5, label=f'Exponential (R²={r2:.2f})', zorder=3)
+       linewidth=2.5, label=f'Modelos Exponencial (R²={r2:.2f})', zorder=3)
 ax.plot(years_extended[mask_fut], areas_proj[mask_fut], '--', color=COLORS['trend'],
-       linewidth=2.5, alpha=0.7, label='Projection', zorder=3)
+       linewidth=2.5, alpha=0.7, label='Proyección', zorder=3)
 
 ax.axhline(RECLASSIFICATION_THRESHOLD, color='gray', linestyle=':', linewidth=1, alpha=0.6, zorder=1)
 if reclass_year:
-    ax.annotate(f'~{int(reclass_year)} (±2)\nReclassification\n(glacier → ice patch)',
+    ax.annotate(f'~{int(reclass_year)} (±2)\nReclasificación\n(glaciar → parche de hielo)',
                xy=(reclass_year, RECLASSIFICATION_THRESHOLD),
                xytext=(reclass_year + 2, RECLASSIFICATION_THRESHOLD + 0.008),
                fontsize=7, color=COLORS['black'], fontweight='bold', ha='center', va='bottom',
@@ -368,23 +368,22 @@ if reclass_year:
 
 ax.axhline(DISAPPEARANCE_THRESHOLD, color='darkred', linestyle=':', linewidth=1, alpha=0.3, zorder=1)
 if disappear_year:
-    ax.annotate(f'~{int(disappear_year)} (±3)\nDisappearance\n(below detection)',
+    ax.annotate(f'~{int(disappear_year)} (±3)\nDesaparición\n(no detectable)',
                xy=(disappear_year, DISAPPEARANCE_THRESHOLD),
                xytext=(disappear_year, 0.006),
                fontsize=7, color='darkred', fontweight='bold', ha='center', va='bottom',
                arrowprops=dict(arrowstyle='-', color='darkred', lw=1.5, linestyle=':', alpha=0.4))
 
-ax.set_xlabel('Year')
-ax.set_ylabel('Area (km²)')
-ax.set_title('Glacier disappearance projection', fontweight='bold')
-
-note_text = (f'Model: dry years ({df_dry["year"].min()}-{df_dry["year"].max()}, n={len(df_dry)})\n'
-             f'Excludes: {", ".join(map(str, wet_years["year"].values))}\n'
-             f'Rate: {rate_pct:.1f}%/year | Huss & Fischer (2016)')
-ax.text(0.02, 0.98, note_text, transform=ax.transAxes, fontsize=7, va='top', ha='left', alpha=0.6,
-       bbox=dict(boxstyle='round,pad=0.4', facecolor='white', edgecolor='gray', alpha=0.3, linewidth=0.5))
-
-ax.legend(loc='upper right', fontsize=7.5)
+ax.set_xlabel('Año')
+ax.set_ylabel('Área (km²)')
+ax.set_title('Proyección sobre la Desaparición del Glaciar', fontweight='bold')
+ax.legend(
+    loc='upper right',
+    fontsize=7.5,
+    frameon=True,
+    facecolor='white',
+    edgecolor='gray'
+)
 y_max = max(df_dry['snow_area_km2'].max(), 0.06)
 ax.set_xlim(initial_year - 1, plot_year_limit)
 ax.set_ylim(-0.002, y_max * 1.15)
@@ -392,8 +391,8 @@ ax.grid(True, alpha=0.3)
 
 sns.despine()
 plt.tight_layout()
-plt.savefig('results/plots/03_proyeccion.png', dpi=300, bbox_inches='tight')
-print('  03_proyeccion.png')
+plt.savefig('results/plots/03_proyection.png', dpi=300, bbox_inches='tight')
+print('  03_proyection.png')
 plt.close()
 
 # ── PLOT 4: Method comparison (NDSI binary vs FCLSU unmixing) ─────────
@@ -415,7 +414,7 @@ if has_ndsi:
             label='FCLSU unmixing', color=COLORS['trend'], alpha=0.85)
 
     ax1.set_ylabel('Area (km²)')
-    ax1.set_title('Method comparison: NDSI vs FCLSU: unmixing and binary', fontweight='bold')
+    ax1.set_title('Comparación de Métodos: NDSI vs FCLSU: unmixing and binario', fontweight='bold')
     ax1.set_xticks(x)
     ax1.set_xticklabels(df['year'].astype(int))
     ax1.legend(fontsize=8)
@@ -432,7 +431,7 @@ if has_ndsi:
     
     mean_reduction = ndsi_vs_unmix.mean()
     ax2.axhline(mean_reduction, color=COLORS['neutral'], linewidth=1, linestyle='--',
-               alpha=1, label=f'Mean difference FCLSU/NDSI: {mean_reduction:.1f}%')
+               alpha=1, label=f'Diferencia promedio FCLSU/NDSI: {mean_reduction:.1f}%')
     
     for i, (yr, diff) in enumerate(zip(df['year'], ndsi_vs_unmix)):
         ax2.text(i, diff, f'{diff:.1f}%', ha='center',
@@ -440,7 +439,7 @@ if has_ndsi:
     
     ax2.set_xlabel('Year')
     ax2.set_ylabel('Unmixing vs NDSI (%)')
-    ax2.set_title('FCLSU unmixing correction relative to NDSI binary (negative = less overestimation)',
+    ax2.set_title('Corrección del Unmixing FCLSU respecto al NDSI binario',
                  fontweight='bold')
     ax2.set_xticks(x)
     ax2.set_xticklabels(df['year'].astype(int))
@@ -449,8 +448,8 @@ if has_ndsi:
     
     sns.despine()
     plt.tight_layout()
-    plt.savefig('results/plots/04_comparacion_metodos.png', dpi=300, bbox_inches='tight')
-    print('  04_comparacion_metodos.png')
+    plt.savefig('results/plots/04_method_comparision.png', dpi=300, bbox_inches='tight')
+    print('  04_method_comparision.png')
     plt.close()
 
 # ============================================================================
