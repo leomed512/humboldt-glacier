@@ -31,10 +31,68 @@
       "adjustment_rule": "If end date exceeds present, adjust to current date"
     },
     "ndsi_threshold": 0.4,
+    "ndsi_role": "Pre-mask for unmixing candidate zone (>= 0.2) + quality control",
+    "ndsi_premask_threshold": 0.2,
+    "ndsi_premask_rationale": "Excludes pure rock/vegetation from unmixing to prevent residual fraction accumulation over large AOI",
     "cloud_coverage_max": 60,
     "spatial_resolution": "20m",
     "sensor": "Sentinel-2 SR Harmonized",
-    "collection": "COPERNICUS/S2_SR_HARMONIZED"
+    "collection": "COPERNICUS/S2_SR_HARMONIZED",
+    "area_estimation_method": {
+      "primary": "NDSI-masked linear spectral unmixing (sub-pixel fractional cover)",
+      "secondary": "Binary NDSI threshold (for comparison only)",
+      "unmixing_bands": [
+        "B2",
+        "B3",
+        "B4",
+        "B8",
+        "B11",
+        "B12"
+      ],
+      "endmembers": {
+        "snow": [
+          8242,
+          7734,
+          6799,
+          4998,
+          304,
+          314
+        ],
+        "rock": [
+          2050,
+          2367,
+          2445,
+          2397,
+          3151,
+          3022
+        ],
+        "vegetation": [
+          636,
+          723,
+          808,
+          1261,
+          2623,
+          2172
+        ]
+      },
+      "endmember_source": "Calibrated from pure pixels within AOI (2020 composite, n=14 images)",
+      "endmember_calibration": "See data/endmember_calibration.json",
+      "spectral_separability": {
+        "snow_vs_rock": "43.0\u00b0",
+        "snow_vs_vegetation": "63.6\u00b0",
+        "rock_vs_vegetation": "21.1\u00b0",
+        "assessment": "All GOOD (>10\u00b0)"
+      },
+      "constraints": [
+        "sumToOne=True",
+        "nonNegative=True"
+      ],
+      "polygon_threshold": 0.5,
+      "references": [
+        "Painter et al. (2009) - Retrieval of subpixel snow covered area",
+        "Sirguey et al. (2009) - Subpixel monitoring of snow cover"
+      ]
+    }
   },
   "rgb_export": {
     "year": 2025,
@@ -73,6 +131,8 @@
   "data_quality": {
     "avg_images_per_year": 11.2,
     "avg_valid_pixels_pct": 100.0,
+    "avg_method_diff_pct": -3.57,
+    "avg_snow_fraction": 0.0144,
     "years_high_quality": 8,
     "years_medium_quality": 0,
     "years_low_quality": 0
@@ -110,10 +170,11 @@
       "2024": "data/glacier_polygons/2024.geojson",
       "2025": "data/glacier_polygons/2025.geojson",
       "2026": "data/glacier_polygons/2026.geojson"
-    }
+    },
+    "method": "Binary mask from snow_fraction >= 0.5, vectorized at 10m"
   },
   "processing_info": {
-    "processing_date": "2026-03-24 14:34:56",
+    "processing_date": "2026-03-25 13:07:26",
     "gee_project": " ",
     "python_packages": {
       "earthengine-api": "1.7.16",
@@ -122,15 +183,18 @@
   },
   "references": {
     "ndsi_method": "Hall et al. (1995) - Remote Sensing of Environment",
+    "unmixing_method": "Painter et al. (2009) - Remote Sensing of Environment",
+    "unmixing_validation": "Sirguey et al. (2009) - Remote Sensing of Environment",
     "validation": "Ram\u00edrez et al. (2020) - Arctic, Antarctic, and Alpine Research",
     "best_practices": "WGMS, USGS Landsat, ESA Copernicus guidelines"
   },
-  "model_b": {
+  "model": {
     "type": "exponential",
-    "description": "Dry years only (excludes wet years with seasonal snow)",
-    "equation": "A(t) = 0.022707 \u00d7 exp(-0.268541 \u00d7 (t - 2020))",
-    "rate_percent_per_year": -26.85,
-    "r_squared": 0.863,
+    "equation": "A(t) = 0.054799 \u00d7 exp(-0.304639 \u00d7 (t - 2019))",
+    "r2": 0.8743,
+    "rmse": 0.005289,
+    "rate_pct_year": -30.46,
+    "n_dry_years": 6,
     "years_used": [
       2020,
       2021,
@@ -143,44 +207,38 @@
       2019,
       2026
     ],
-    "n_years": 6,
     "parameters": {
-      "a": 0.022707291182843276,
-      "k": -0.2685410996611245,
-      "t0": 2020
+      "a": 0.05479870809757768,
+      "k": -0.3046389023950345,
+      "t0": 2019
     },
-    "thresholds": {
-      "glacier_definition_km2": 0.005,
-      "glacier_definition_source": "Huss & Fischer 2016",
-      "practical_disappearance_km2": 0.0001,
-      "practical_disappearance_note": "Area below Sentinel-2 detection"
-    },
+    "physical_basis": "Retreat rate proportional to current area (Huss & Fischer, 2016)",
     "uncertainty": {
-      "model_rmse_km2": 0.0056,
-      "confidence_interval_95pct_km2": 0.0109
+      "model_rmse_km2": 0.0053,
+      "confidence_interval_95pct_km2": 0.0104
     },
     "projections": {
-      "glacier_threshold": {
-        "year": 2025.6,
+      "reclassification": {
+        "year": 2027.7,
         "threshold_km2": 0.005,
-        "uncertainty_years": 2,
-        "valid": true
+        "definition": "Glacier \u2192 ice patch (Huss & Fischer, 2016)",
+        "uncertainty_years": 2
       },
-      "total_disappearance": {
-        "year": 2040.2,
+      "disappearance": {
+        "year": 2040.5,
         "threshold_km2": 0.0001,
-        "uncertainty_years": 3,
-        "valid": true
+        "definition": "Below Sentinel-2 detection limit (~1 pixel at 20m)",
+        "uncertainty_years": 3
       }
     }
   },
   "comparative_image": {
     "file": "results/plots/comparison_2020_2025.png",
-    "area_2020_km2": 0.057774,
-    "area_2025_km2": 0.009433,
-    "loss_km2": 0.048341,
-    "loss_percent": 83.67,
-    "annual_rate_percent": 16.73,
+    "area_2020_km2": 0.053524,
+    "area_2025_km2": 0.006881,
+    "loss_km2": 0.046643,
+    "loss_percent": 87.14,
+    "annual_rate_percent": 17.43,
     "time_span_years": 5
   }
 }

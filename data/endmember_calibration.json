@@ -1,0 +1,166 @@
+{
+  "calibration_date": "2026-03-24 20:07:16",
+  "reference_year": 2020,
+  "reference_images": 14,
+  "bands": [
+    "B2",
+    "B3",
+    "B4",
+    "B8",
+    "B11",
+    "B12"
+  ],
+  "endmembers": {
+    "snow": [
+      8242,
+      7734,
+      6799,
+      4998,
+      304,
+      314
+    ],
+    "rock": [
+      2050,
+      2367,
+      2445,
+      2397,
+      3151,
+      3022
+    ],
+    "vegetation": [
+      636,
+      723,
+      808,
+      1261,
+      2623,
+      2172
+    ]
+  },
+  "details": {
+    "snow": {
+      "mean_spectrum": [
+        8242,
+        7734,
+        6799,
+        4998,
+        304,
+        314
+      ],
+      "std_spectrum": [
+        199.7,
+        285.4,
+        344.2,
+        167.5,
+        13.7,
+        6.8
+      ],
+      "n_samples": 3,
+      "mean_ndsi": 0.924,
+      "bands": [
+        "B2",
+        "B3",
+        "B4",
+        "B8",
+        "B11",
+        "B12"
+      ]
+    },
+    "rock": {
+      "mean_spectrum": [
+        2050,
+        2367,
+        2445,
+        2397,
+        3151,
+        3022
+      ],
+      "std_spectrum": [
+        192.5,
+        156.0,
+        28.0,
+        7.0,
+        119.0,
+        94.0
+      ],
+      "n_samples": 2,
+      "mean_ndsi": -0.142,
+      "bands": [
+        "B2",
+        "B3",
+        "B4",
+        "B8",
+        "B11",
+        "B12"
+      ]
+    },
+    "vegetation": {
+      "mean_spectrum": [
+        636,
+        723,
+        808,
+        1261,
+        2623,
+        2172
+      ],
+      "std_spectrum": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "n_samples": 1,
+      "mean_ndsi": -0.568,
+      "bands": [
+        "B2",
+        "B3",
+        "B4",
+        "B8",
+        "B11",
+        "B12"
+      ]
+    }
+  },
+  "sample_points": {
+    "snow": [
+      [
+        -70.998033,
+        8.550038
+      ],
+      [
+        -70.998314,
+        8.549986
+      ],
+      [
+        -70.997716,
+        8.550018
+      ]
+    ],
+    "rock": [
+      [
+        -70.99696,
+        8.54831
+      ],
+      [
+        -71.001101,
+        8.548985
+      ],
+      [
+        -70.9988,
+        8.5433
+      ]
+    ],
+    "vegetation": [
+      [
+        -70.9901,
+        8.54051
+      ]
+    ]
+  },
+  "notes": [
+    "Values are mean surface reflectance from Sentinel-2 SR",
+    "Extracted from median composite of dry season window",
+    "Review if processing a different AOI or sensor"
+  ]
+}
