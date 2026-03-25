@@ -1,6 +1,6 @@
 # 🏔️ Pico Humboldt Glacier - Monitoring Venezuela's Last Glacier
 
-**Snow cover dynamics analysis (2019-2026) using Sentinel-2 satellite imagery**
+**Snow cover dynamics analysis (2019-2026) using Sentinel-2 satellite imagery and sub-pixel spectral unmixing**
 
 [![Python](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.40-red.svg)](https://streamlit.io/)
@@ -8,16 +8,16 @@
 
 ---
 
-## 📋 Description
+## Description
 
-The La Corona glacier on Pico Humboldt (4,942 m a.s.l.) is the last remaining glacier in Venezuela. This project establishes an **automated monitoring system** based on spectral analysis of Sentinel-2 imagery to quantify glacier retreat over the 2019-2026 period.
+The La Corona glacier on Pico Humboldt (4,942 m a.s.l.) is the last remaining glacier in Venezuela. This project establishes an **automated monitoring system** based on spectral analysis of Sentinel-2 imagery to quantify glacier retreat over the 2019-2026 period with sub-pixel precision.
 
 **NOTE**: Imagery acquisition was attempted from 2015 (Sentinel-2 availability), but cloud cover was too high in the area in the 2015-2018 period.
 
 ### Main Objectives
 
-1. **Quantify** the temporal evolution of glacier area using the Normalized Difference Snow Index (NDSI)
-2. **Model** the retreat rate and project critical disappearance thresholds
+1. **Quantify** the temporal evolution of glacier area using NDSI-masked spectral unmixing for sub-pixel snow cover estimation
+2. **Model** the retreat rate and project critical reclassification and disappearance thresholds
 3. **Develop** interactive visualizations for scientific communication and outreach
 
 ---
@@ -26,9 +26,9 @@ The La Corona glacier on Pico Humboldt (4,942 m a.s.l.) is the last remaining gl
 
 | Product | Description | Format |
 |---------|-------------|--------|
-| **Interactive dashboard** | Web visualization with 2D/3D maps and temporal charts | Streamlit |
-| **Time series 2019-2026** | Annual metrics: area, NDSI, variability | CSV |
-| **Predictive model** | Exponential regression (R²=0.86) with projections | Metadata JSON |
+| **Interactive dashboard** | Web visualization with 2D/3D maps, projection plot, and method comparison | Streamlit |
+| **Time series 2019-2026** | Annual metrics: fractional area, NDSI area, spectral statistics | CSV |
+| **Predictive model** | Exponential regression (R²=0.87) with reclassification and disappearance projections | Metadata JSON |
 | **Scientific figures** | 4 figures + 1 comparative RGB image | PNG (300 DPI) |
 | **Glacier polygons** | Annual vector geometries | GeoJSON |
 
@@ -37,6 +37,7 @@ The La Corona glacier on Pico Humboldt (4,942 m a.s.l.) is the last remaining gl
 ## Technology Stack
 
 - **Google Earth Engine (Python API):** Cloud-based Sentinel-2 image processing
+- **Spectral Unmixing (FCLSU):** Sub-pixel fractional snow cover estimation with calibrated endmembers
 - **GeoPandas/Rasterio:** Geospatial analysis and DEM processing
 - **SciPy/NumPy/Pandas:** Analysis and modeling
 - **Matplotlib/Plotly:** Visualization
@@ -47,19 +48,25 @@ The La Corona glacier on Pico Humboldt (4,942 m a.s.l.) is the last remaining gl
 
 ## Key Results
 
-### 2026 Metrics
-- **Glacier area:** 0.1289 km²
-- **Total loss (2020-2026):** 77.7%
-- **Average annual rate:** -26.85%/year (dry years)
+### 2025 Metrics (last dry year)
+- **Glacier area:** 0.0069 km² (FCLSU unmixing)
+- **Total loss (2020-2025):** 87.1%
+- **Average annual rate:** -30.5%/year (dry years, exponential model)
 
 ### Projections
-- **Glacier threshold (0.005 km²):** ~2028 (±2 years)
-- **Practical disappearance:** ~2040 (±3 years)
+- **Reclassification** (glacier → ice patch, <0.005 km²): **~2027** (±2 years)
+- **Disappearance** (below Sentinel-2 detection): **~2040** (±3 years)
 
 ### External Validation
-- **Ramírez et al. (2020):** 0.046 km² (2019)
-- **This study:** 0.058 km² (2020)
-- **Relative difference:** +28.4% (expected given methodological differences)
+- **Ramírez et al. (2020) for 2019** 0.046 km² (2019, manual photointerpretation)
+- **This study for 2020:** 0.0535 km² (FCLSU unmixing + NDSI masking)
+- **Relative difference:** +16.3% (consistent with resolution and methodological differences), initially +25.7% using pure NDSI, but improved with FCLSU*.
+
+### * Methodological Improvement
+- **NDSI binary (traditional):** 0.0578 km² for 2020 (+25.7% vs Ramírez)
+- **FCLSU unmixing:** 0.0535 km² for 2020 (+16.3% vs Ramírez)
+- **Overestimation reduced by 9.4 percentage points** (~36% of original bias eliminated)
+- Correction amplifies for smaller glacier areas: -7.4% in 2020, -26.6% in 2025
 
 ---
 
@@ -67,42 +74,47 @@ The La Corona glacier on Pico Humboldt (4,942 m a.s.l.) is the last remaining gl
 
 ![Glacier comparison](results/plots/comparison_2020_2025.png)
 
-*The satellite image reveals a significant glacier retreat of **83.7% in just 5 years**,
+*The satellite image reveals significant glacier retreat of **87.1% in 5 years**,
 with visible fragmentation of the remaining ice and drastic reduction of the glacier core.*
 
 ---
 
-### Temporal Evolution and Anomalies (2019-2026)
+### Temporal Evolution (2019-2026)
 
-![Time series](results/plots/01_time_series_anomalies.png)
+![Time series](results/plots/01_time_series.png)
 
-*An accelerated decrease in glacier area is observed, with interannual variability influenced
-by climatic conditions (dry vs wet years). The exponential model captures the collapse trend.*
+*Accelerated decrease in glacier area, with Ramírez et al. (2020) reference points 
+validating the observed trend. Wet years (2019, 2026) excluded from model due to seasonal snow.*
 
 ---
 
 ### Glacier Disappearance Projection
 
-![Projection](results/plots/04_adjusted_projection.png)
+![Projection](results/plots/03_proyection.png)
 
-*The exponential model projects the glacier will reach the critical threshold (~0.005 km²) around **2028 (±2 years)**,
-with practical disappearance estimated by **2040**, evidencing an irreversible process under current conditions.*
+*The exponential model projects reclassification (glacier → ice patch) around **~2027 (±2 years)** based on Huss & Fischer (2016) classification,
+with disappearance below detection estimated by **~2040 (±3 years)**, *
 
 ---
 
 ## Methodology
 
 ### 1. Data Acquisition
-- **Source:** Sentinel-2 L2A (SR)
+- **Source:** Sentinel-2 L2A (SR Harmonized)
 - **Period:** 2019-2026 (8 years)
-- **Temporal window:** December 15 of the previous year to March 15 of the analyzed year (dry season)
-- **Filters:** Cloud cover <60%, AOI of 4 km²
+- **Temporal window:** December 15 (year-1) to March 15 (year) — dry season
+- **Filters:** Cloud cover <60%, SCL mask, AOI of 4 km²
 
-### 2. Spectral Processing
-- **Index:** NDSI = (Green - SWIR1) / (Green + SWIR1)
-- **Threshold:** NDSI ≥ 0.4 (snow/ice)
-- **Computation resolution:** Mixed: 10 m (RGB bands) / 20 m (SWIR)
-- **Metrics:** Area, mean NDSI, standard deviation, CV
+### 2. Area Estimation: NDSI-Masked Spectral Unmixing
+- **Pre-mask:** NDSI ≥ 0.2 (candidate zone screening)
+- **Method:** Fully Constrained Linear Spectral Unmixing (FCLSU)
+  - 3 endmembers: snow, rock, páramo vegetation
+  - 6 Sentinel-2 bands: B2, B3, B4, B8, B11, B12
+  - Constraints: sum-to-one, non-negativity
+- **Endmember calibration:** Pure pixels identified in QGIS, validated by spectral separability (>21° all pairs)
+- **Area calculation:** Continuous fractional sum (each pixel contributes fraction × pixel area)
+- **Polygon generation:** Binary mask from fraction ≥ 0.5, vectorized at 10 m
+- **Reference comparison:** NDSI ≥ 0.4 binary area computed in parallel for validation
 
 ### 3. Annual Classification
 - **Dry years (permanent glacier):** Area <0.060 km²
@@ -110,33 +122,32 @@ with practical disappearance estimated by **2040**, evidencing an irreversible p
 - **Dry years used for modeling:** 2020-2025 (n=6)
 
 ### 4. Predictive Modeling
-- **Models evaluated:** Linear, Exponential, Polynomial
-- **Selection criterion:** AIC (Akaike Information Criterion)
-- **Selected model:** Exponential decay
-  - Equation: A(t) = 0.0227 × exp(-0.2685 × (t - 2020))
-  - R² = 0.863
-  - RMSE = ±0.0028 km²
+- **Models evaluated:** Exponential, Linear, Polynomial
+- **Selection criterion:** AICc (corrected for small samples; Burnham & Anderson, 2002)
+- **Selected model:** Exponential decay (theoretical basis: Huss & Fischer, 2016)
+  - R² = 0.874
+  - RMSE = ±0.0053 km²
 
 ### 5. Projections
-- **Glacier threshold:** 0.005 km² (Huss & Fischer, 2016)
-- **Practical disappearance:** <0.0001 km² (< 1 Sentinel-2 pixel)
+- **Reclassification threshold:** 0.005 km² — glacier → ice patch (Huss & Fischer, 2016)
+- **Disappearance threshold:** 0.0001 km² — below Sentinel-2 detection (~1 pixel at 20 m)
 - **Uncertainty:** ±1.96 × RMSE (95% interval)
 
 ---
 
 ## 🚀 Demo
 
-Available at: https://humboldt-glacier.streamlit.app/
+Available at: https://glaciar-humboldt-ve.streamlit.app/
 
 The deployed Streamlit version **uses preprocessed files included in the repository**.
-That is, the web app **does not run Google Earth Engine in real time**.
+The web app **does not run Google Earth Engine in real time**.
 
 ### The app directly consumes:
 - `data/snow_stats_2015_2026.csv`
 - `data/processing_metadata.json`
 - `data/humboldt_dem_30m.tif`
 - `data/glacier_polygons/*.geojson`
-- `results/plots/comparison_2020_2025.png`
+- `results/plots/*.png`
 
 ---
 
@@ -171,11 +182,11 @@ earthengine authenticate
 
 ### Running
 ```bash
-# 1. Extract data from GEE
+# 1. Extract data from GEE (includes spectral unmixing)
 python scripts/01_processing_gee.py
 
 # 2. Statistical analysis and plot generation
-python scripts/02_analysis.py
+python scripts/02_analysis_visualization.py
 
 # 3. Launch interactive dashboard
 streamlit run scripts/03_dashboard.py
@@ -203,9 +214,15 @@ streamlit run scripts/03_dashboard.py
 
 9. **Gorelick, N., Hancher, M., Dixon, M., et al.** (2017). Google Earth Engine: Planetary-scale geospatial analysis for everyone. *Remote Sensing of Environment*, 202, 18-27. https://doi.org/10.1016/j.rse.2017.06.031
 
+10. **Painter, T. H., Rittger, K., McKenzie, C., et al.** (2009). Retrieval of subpixel snow covered area, grain size, and albedo from MODIS. *Remote Sensing of Environment*, 113(4), 868-879. https://doi.org/10.1016/j.rse.2009.01.001
+
+11. **Sirguey, P., Mathieu, R., & Arnaud, Y.** (2009). Subpixel monitoring of the seasonal snow cover with MODIS at 250 m spatial resolution. *Remote Sensing of Environment*, 113(4), 738-749. https://doi.org/10.1016/j.rse.2008.12.002
+
+12. **Burnham, K. P., & Anderson, D. R.** (2002). *Model Selection and Multimodel Inference* (2nd ed.). Springer. https://doi.org/10.1007/b97636
+
 ### Digital Elevation Model
 
-10. **European Space Agency (ESA).** (2021). Copernicus DEM - Global and European Digital Elevation Model (COP-DEM). https://doi.org/10.5270/ESA-c5d3d65
+13. **European Space Agency (ESA).** (2021). Copernicus DEM - Global and European Digital Elevation Model (COP-DEM). https://doi.org/10.5270/ESA-c5d3d65
 
 ---
 
@@ -222,4 +239,4 @@ URL: https://github.com/leomed512/humboldt-glacier
 
 ---
 
-**Scientific note:** This exploratory study complements high-precision research such as Ramírez et al. (2020), establishing a continuous monitoring protocol using open data (Sentinel-2) that enables early warnings about critical changes.
+**Scientific note:** This exploratory study complements high-precision research such as Ramírez et al. (2020), establishing a continuous monitoring protocol using open data (Sentinel-2) and sub-pixel spectral unmixing that enables early warnings about critical changes.
