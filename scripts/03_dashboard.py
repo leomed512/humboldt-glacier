@@ -278,7 +278,7 @@ st.markdown(f"### Monitoreo del Último glaciar de Venezuela · {year_min}-{year
 
 st.markdown("""
 Durante el último siglo el glaciar en el Pico Humboldt ha enfrentado una reducción acelerada de su superficie 
-debido al aumento de las temperaturas en los Andes Tropicales, uniéndose a las extintas *Nieves Eternas*
+debido al aumento de las temperaturas y cambios en los patrones de precipitaciones en los Andes Tropicales, uniéndose a las extintas *Nieves Eternas*
 de la cordillera de Mérida como los existentes en el Pico Bolívar, La Concha, El Toro y León.
 
 Con este escenario Venezuela se convierte en el primer país tropical en despedirse de sus glaciares, 
