@@ -1,14 +1,15 @@
 """
 Process Sentinel-2 imagery in Google Earth Engine
 
+- Sub-pixel spectral unmixing for fractional snow cover estimation
+- Binary NDSI preserved as quality control metric
 - Years without data are OMITTED (no fake values are generated)
 - Complete metadata documents excluded years
-
 
 Output:
   - data/snow_stats_2015_2026.csv (only years with valid data)
   - data/humboldt_dem_30m.tif (extended AOI)
-  - data/2020_rgb.tif, 2023_rgb.tif, 2026_rgb.tif (extended AOI)
+  - data/2025_rgb.tif (extended AOI)
   - data/glacier_polygons/{year}.geojson 
   - data/aoi_humboldt.geojson (small AOI)
   - data/aoi_visualization.geojson (extended AOI)
@@ -55,24 +56,65 @@ NDSI_THRESHOLD = 0.4
 CLOUD_PCT_MAX = 60
 SCALE = 20
 
+# ---------------------------------------------------------------------------
+# Spectral unmixing configuration
+# ---------------------------------------------------------------------------
+# Endmember spectra for Sentinel-2 bands [B2, B3, B4, B8, B11, B12]
+# Units: surface reflectance (Sentinel-2 SR scale)
+#
+# Calibrated from pure pixels within AOI using 2020 composite (14 images).
+# See data/endmember_calibration.json for sampling coordinates and validation.
+#
+# Snow:       NDSI=0.924 | High visible, near-zero SWIR (clean glacier ice)
+# Rock:       NDSI=-0.142 | Moderate visible, high SWIR (exposed moraine)
+# Vegetation: NDSI=-0.568 | Low visible, moderate NIR/SWIR (páramo)
+#
+# Spectral separability (all GOOD):
+#   snow vs rock: 43.0° | snow vs vegetation: 63.6° | rock vs vegetation: 21.1°
+# ---------------------------------------------------------------------------
+ENDMEMBERS = {
+    'snow':       [8242, 7734, 6799, 4998, 304, 314],
+    'rock':       [2050, 2367, 2445, 2397, 3151, 3022],
+    'vegetation': [636,  723,  808,  1261, 2623, 2172]
+}
+UNMIX_BANDS = ['B2', 'B3', 'B4', 'B8', 'B11', 'B12']
+
+# Fraction threshold for binary polygon generation
+# Pixels with snow_fraction >= 0.5 are classified as glacier for vectorization
+# (continuous fractions cannot be vectorized; polygons require discrete boundaries)
+SNOW_FRACTION_THRESHOLD = 0.5
+
+# NDSI pre-mask for unmixing candidate zone
+# Only pixels with NDSI >= this value enter the unmixing.
+# All others are forced to snow_fraction = 0.
+# Rationale: the AOI is 4.09 km² but the glacier is ~0.05 km² (1.2%).
+# Without pre-masking, thousands of non-snow pixels receive small residual
+# snow fractions that accumulate into a large false positive area.
+# Threshold of 0.2 is deliberately relaxed (vs 0.4 for binary classification)
+# to include mixed pixels at glacier margins while excluding pure rock/vegetation.
+NDSI_PREMASK_THRESHOLD = 0.2
+
 print(f'\nProcessing parameters:')
 print(f'  Period: {START_YEAR}-{END_YEAR}')
 print(f'  Temporal window: Dec 15 (year-1) - Mar 15 (year)')
-print(f'  NDSI threshold: {NDSI_THRESHOLD}')
+print(f'  NDSI threshold: {NDSI_THRESHOLD} (quality control)')
+print(f'  NDSI pre-mask: {NDSI_PREMASK_THRESHOLD} (unmixing candidate zone)')
+print(f'  Snow fraction threshold: {SNOW_FRACTION_THRESHOLD} (polygon generation)')
 print(f'  Maximum cloud cover: {CLOUD_PCT_MAX}%')
 print(f'  Resolution: {SCALE}m')
+print(f'  Method: Linear spectral unmixing ({len(ENDMEMBERS)} endmembers, NDSI-masked)')
 
-# Create data folder
+# Create data folders
 Path('data').mkdir(exist_ok=True)
 Path('data/glacier_polygons').mkdir(exist_ok=True)
 
 
 # ============================================================================
-# 3. DEFINE TWO AOIs 
+# 3. DEFINE TWO AOIs (CRITICAL)
 # ============================================================================
 
 # SMALL AOI - For processing (metrics)
-aoi_procesamiento = ee.Geometry.Polygon([[
+aoi_processing = ee.Geometry.Polygon([[
     [-71.0079,   8.55679],
     [-70.988288, 8.55679],
     [-70.988288, 8.53973],
@@ -112,21 +154,54 @@ def mask_s2_scl(img):
 
 def add_snow_bands(img):
     """
-    Compute NDSI and binary snow mask
+    Compute fractional snow cover via NDSI-masked linear spectral unmixing.
     
-    NDSI = (B3_Green - B11_SWIR) / (B3_Green + B11_SWIR)
-    Snow = NDSI >= 0.4 (standard threshold, Hall et al. 1995)
+    Two-stage approach:
+      1. NDSI pre-mask (>= 0.2): identifies candidate snow zone.
+         Excludes pure rock/vegetation pixels that would accumulate
+         false positive snow fractions across the 4 km² AOI.
+      2. Spectral unmixing: decomposes only candidate pixels into
+         fractional abundances of snow, rock, and vegetation.
+         Non-candidate pixels are assigned snow_fraction = 0.
+    
+    This hybrid approach combines NDSI's robustness for gross discrimination
+    with unmixing's sub-pixel precision at glacier margins.
+    (Painter et al., 2009; Sirguey et al., 2009)
+    
+    Output bands:
+        snow_fraction: Continuous 0.0-1.0 (primary area metric)
+        snow:          Binary mask from fraction >= 0.5 (for polygons)
+        NDSI:          Normalized Difference Snow Index (quality control)
     """
-    # NDSI
+    # ── Stage 1: NDSI pre-mask ─────────────────────────────────────────
+    # Relaxed threshold (0.2) captures mixed pixels at glacier margins
+    # while eliminating pure rock/vegetation (NDSI typically < 0)
     ndsi = img.normalizedDifference(['B3', 'B11']).rename('NDSI')
-    
-    # Binary mask
-    snow = ndsi.gte(NDSI_THRESHOLD).rename('snow')
-    
-    # Morphological filter: smooth and remove noise
-    snow_clean = snow.focal_max(1).focal_min(1).rename('snow')
-    
-    return img.addBands([ndsi, snow_clean])
+    candidate_mask = ndsi.gte(NDSI_PREMASK_THRESHOLD)
+
+    # ── Stage 2: Spectral unmixing (candidate zone only) ───────────────
+    endmember_list = [
+        ENDMEMBERS['snow'],
+        ENDMEMBERS['rock'],
+        ENDMEMBERS['vegetation']
+    ]
+
+    fractions = img.select(UNMIX_BANDS).unmix(
+        endmembers=endmember_list,
+        sumToOne=True,
+        nonNegative=True
+    ).rename(['snow_fraction', 'rock_fraction', 'vegetation_fraction'])
+
+    # Apply pre-mask: non-candidate pixels → snow_fraction = 0
+    snow_fraction = fractions.select('snow_fraction').updateMask(candidate_mask).unmask(0)
+
+    # ── Binary mask for polygon generation ─────────────────────────────
+    snow_binary = snow_fraction.gte(SNOW_FRACTION_THRESHOLD).rename('snow')
+
+    # Morphological filter: close small gaps, remove isolated pixels
+    snow_binary = snow_binary.focal_max(1).focal_min(1).rename('snow')
+
+    return img.addBands([snow_fraction, snow_binary, ndsi])
 
 
 def generate_composite(year):
@@ -137,7 +212,7 @@ def generate_composite(year):
     e.g.: year=2019 → Dec 15, 2018 to Mar 15, 2019
            
     Returns:
-        ee.Image: Median composite with NDSI bands if data available
+        ee.Image: Median composite if data available
         None: If window is in the future, insufficient, or no images
     """
     from datetime import datetime
@@ -185,7 +260,7 @@ def generate_composite(year):
     # ════════════════════════════════════════════════════════════
     
     col = (ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
-           .filterBounds(aoi_procesamiento)
+           .filterBounds(aoi_processing)
            .filterDate(start, end)
            .filter(ee.Filter.lte('CLOUDY_PIXEL_PERCENTAGE', CLOUD_PCT_MAX))
            .map(mask_s2_scl))
@@ -214,85 +289,138 @@ def generate_composite(year):
 
 def calculate_stats(composite):
     """
-    Calculate zonal statistics with AOI
+    Calculate zonal statistics using sub-pixel fractional snow cover.
     
-    Metrics:
-    - snow_area_km2: Total snow area
-    - snow_pct: Percentage of AOI covered
-    - ndsi_mean/std: Spectral statistics
-    - valid_pct: Percentage of valid pixels (cloud-free)
+    Primary metric (snow_area_km2):
+        Each pixel contributes its snow_fraction × pixel_area.
+        A 20m pixel that is 60% snow contributes 240 m² (not 0 or 400 m²).
+    
+    Secondary metric (binary_area_km2):
+        Traditional binary count for comparison with previous results
+        and external studies that use threshold-based methods.
+    
+    Quality metrics:
+        NDSI mean/std computed over pixels where snow_fraction >= 0.5,
+        providing spectral quality assessment of the detected snow.
     """
-    # Add snow bands
+    # Add unmixing + NDSI bands
     composite_snow = add_snow_bands(composite)
-    snow = composite_snow.select('snow')
+    snow_fraction = composite_snow.select('snow_fraction')
+    snow_binary = composite_snow.select('snow')
     ndsi = composite_snow.select('NDSI')
     
-    # Store custom bands for snow surface polygons
-    composite_processed = composite_snow  # Already has NDSI and snow
+    # Composite with all bands for polygon export
+    composite_processed = composite_snow
 
-
-    # Snow area (m²)
-    snow_area = snow.multiply(ee.Image.pixelArea()).reduceRegion(
+    # ── Primary: fractional snow area (sub-pixel) ──────────────────────
+    fractional_area = snow_fraction.multiply(ee.Image.pixelArea()).reduceRegion(
         reducer=ee.Reducer.sum(),
-        geometry=aoi_procesamiento,
+        geometry=aoi_processing,
+        scale=SCALE,
+        maxPixels=1e9
+    ).get('snow_fraction')
+    
+    # ── Secondary: unmixing binary area (fraction >= 0.5) ────────────────
+    binary_area = snow_binary.multiply(ee.Image.pixelArea()).reduceRegion(
+        reducer=ee.Reducer.sum(),
+        geometry=aoi_processing,
         scale=SCALE,
         maxPixels=1e9
     ).get('snow')
     
-    # NDSI statistics (snow zone only)
-    ndsi_stats = ndsi.updateMask(snow).reduceRegion(
+    # ── Tertiary: NDSI binary area (traditional method, >= 0.4) ────────
+    # Independent from unmixing — pure NDSI threshold for comparison
+    ndsi_binary = ndsi.gte(NDSI_THRESHOLD).focal_max(1).focal_min(1)
+    ndsi_binary_area = ndsi_binary.multiply(ee.Image.pixelArea()).reduceRegion(
+        reducer=ee.Reducer.sum(),
+        geometry=aoi_processing,
+        scale=SCALE,
+        maxPixels=1e9
+    ).get('NDSI')
+    
+    # ── NDSI statistics (over snow_fraction >= 0.5 zone) ───────────────
+    ndsi_stats = ndsi.updateMask(snow_binary).reduceRegion(
         reducer=ee.Reducer.mean().combine(
             reducer2=ee.Reducer.stdDev(),
             sharedInputs=True
         ),
-        geometry=aoi_procesamiento,
+        geometry=aoi_processing,
         scale=SCALE,
         maxPixels=1e9
     )
     
-    # Valid pixel percentage
+    # ── Mean snow fraction (quality indicator) ─────────────────────────
+    # Average fraction across all valid pixels in AOI
+    # High values (>0.7) indicate well-resolved glacier core
+    # Low values (<0.3) indicate mostly mixed/marginal pixels
+    mean_fraction = snow_fraction.reduceRegion(
+        reducer=ee.Reducer.mean(),
+        geometry=aoi_processing,
+        scale=SCALE,
+        maxPixels=1e9
+    ).get('snow_fraction')
+    
+    # ── Valid pixel percentage ─────────────────────────────────────────
     valid_pixels = composite.select('B3').mask().reduceRegion(
         reducer=ee.Reducer.sum(),
-        geometry=aoi_procesamiento,
+        geometry=aoi_processing,
         scale=SCALE,
         maxPixels=1e9
     ).get('B3')
     
-    total_pixels = ee.Number(aoi_procesamiento.area()).divide(SCALE * SCALE)
+    total_pixels = ee.Number(aoi_processing.area()).divide(SCALE * SCALE)
     valid_pct = ee.Number(valid_pixels).divide(total_pixels).multiply(100)
     
-    # Extract values
+    # ── Extract values from server ─────────────────────────────────────
     year = composite.get('year').getInfo()
     images_count = composite.get('images_count').getInfo()
     period_start = composite.get('period_start').getInfo()
     period_end = composite.get('period_end').getInfo()
     
-    snow_area_m2 = ee.Number(snow_area).getInfo()
-    snow_area_km2 = snow_area_m2 / 1e6
+    fractional_area_m2 = ee.Number(fractional_area).getInfo()
+    fractional_area_km2 = fractional_area_m2 / 1e6
+    
+    binary_area_m2 = ee.Number(binary_area).getInfo()
+    binary_area_km2 = binary_area_m2 / 1e6
+    
+    ndsi_binary_area_m2 = ee.Number(ndsi_binary_area).getInfo()
+    ndsi_binary_area_km2 = ndsi_binary_area_m2 / 1e6
     
     ndsi_mean = ee.Number(ndsi_stats.get('NDSI_mean')).getInfo()
     ndsi_std = ee.Number(ndsi_stats.get('NDSI_stdDev')).getInfo()
     
+    mean_fraction_val = ee.Number(mean_fraction).getInfo()
+    
     valid_pct_val = valid_pct.getInfo()
     
-    # CLIP valid_pct to [0, 100]
+    # Clip valid_pct to [0, 100]
     # Values >100% are artifacts from multi-resolution resampling
     valid_pct_val = max(0.0, min(100.0, valid_pct_val))
     
-    # Calculate AOI percentage
+    # Calculate AOI percentage (using fractional area as primary)
     aoi_area_km2 = 4.09
-    snow_pct = (snow_area_km2 / aoi_area_km2) * 100
+    snow_pct = (fractional_area_km2 / aoi_area_km2) * 100
+    
+    # ── Diagnostic: fractional vs binary difference ────────────────────
+    if binary_area_km2 > 0:
+        method_diff_pct = ((fractional_area_km2 - binary_area_km2) / binary_area_km2) * 100
+    else:
+        method_diff_pct = 0.0
     
     stats = {
         'year': year,
         'period_start': period_start,
         'period_end': period_end,
         'images_count': images_count,
-        'snow_area_km2': round(snow_area_km2, 6),
+        'snow_area_km2': round(fractional_area_km2, 6),      # PRIMARY: sub-pixel unmixing
+        'binary_area_km2': round(binary_area_km2, 6),         # Unmixing discretized (fraction >= 0.5)
+        'ndsi_area_km2': round(ndsi_binary_area_km2, 6),      # Traditional NDSI >= 0.4
+        'method_diff_pct': round(method_diff_pct, 2),         # DIAGNOSTIC
         'snow_pct': round(snow_pct, 2),
         'valid_pct': round(valid_pct_val, 2), 
         'ndsi_mean': round(ndsi_mean, 3) if ndsi_mean else None,
-        'ndsi_std': round(ndsi_std, 3) if ndsi_std else None
+        'ndsi_std': round(ndsi_std, 3) if ndsi_std else None,
+        'mean_snow_fraction': round(mean_fraction_val, 4) if mean_fraction_val else None
     }
 
     return stats, composite_processed
@@ -303,10 +431,14 @@ def calculate_stats(composite):
 
 def export_glacier_polygon(composite_processed, year, aoi):
     """
-    Convert snow mask to GeoJSON polygon
+    Convert binary snow mask to GeoJSON polygon.
+    
+    Uses the snow band (fraction >= 0.5 threshold) for vectorization.
+    Polygons represent the discrete glacier boundary; area metrics
+    use the continuous fraction separately.
     
     Args:
-        composite_processed: Processed composite data
+        composite_processed: ee.Image with 'snow' binary band
         year: Year
         aoi: Area of interest
     
@@ -329,7 +461,7 @@ def export_glacier_polygon(composite_processed, year, aoi):
         # Filter only snow polygons (label=1)
         glacier_polygons = vectors.filter(ee.Filter.eq('snow', 1))
         
-        # Simplify geometry (10m tolerance)
+        # Simplify geometry (2m tolerance)
         glacier_polygons = glacier_polygons.map(
             lambda feat: feat.simplify(maxError=2)
         )
@@ -383,11 +515,12 @@ for year in range(START_YEAR, END_YEAR + 1):
         results.append(stats)
         
         # Polygons
-        polygon_path = export_glacier_polygon(composite_processed, year, aoi_procesamiento)
+        polygon_path = export_glacier_polygon(composite_processed, year, aoi_processing)
         if polygon_path:
             polygon_files[year] = polygon_path
         
-        print(f'  → Area: {stats["snow_area_km2"]:.4f} km² | '
+        print(f'  → Area: {stats["snow_area_km2"]:.4f} km² (unmix) | '
+              f'{stats["ndsi_area_km2"]:.4f} km² (NDSI) | '
               f'NDSI: {stats["ndsi_mean"]:.2f} | '
               f'Valid: {stats["valid_pct"]:.1f}%')
     
@@ -418,7 +551,25 @@ print(f'    Columns: {len(df.columns)}')
 
 # Show summary
 print('\nDATA SUMMARY:')
-print(df[['year', 'snow_area_km2', 'ndsi_mean', 'ndsi_cv', 'images_count', 'valid_pct']].to_string(index=False))
+print(df[['year', 'snow_area_km2', 'ndsi_area_km2', 'binary_area_km2',
+          'ndsi_mean', 'images_count', 'valid_pct']].to_string(index=False))
+
+# ── Unmixing diagnostic summary ───────────────────────────────────────
+print('\nUNMIXING DIAGNOSTIC:')
+if len(df) > 0:
+    avg_diff = df['method_diff_pct'].mean()
+    print(f'  Avg fractional vs binary difference: {avg_diff:+.2f}%')
+    print(f'  Range: {df["method_diff_pct"].min():+.2f}% to {df["method_diff_pct"].max():+.2f}%')
+    print(f'  Avg snow fraction (AOI): {df["mean_snow_fraction"].mean():.4f}')
+    
+    # Sanity check: fractional should generally be <= binary
+    # (unmixing assigns partial coverage where binary assigns full pixel)
+    years_frac_higher = df[df['method_diff_pct'] > 5]
+    if len(years_frac_higher) > 0:
+        print(f'\n  ⚠ WARNING: {len(years_frac_higher)} years where fractional > binary by >5%')
+        print(f'    Years: {years_frac_higher["year"].tolist()}')
+        print(f'    This may indicate endmember calibration issues.')
+        print(f'    Review endmember spectra against pure pixels in AOI.')
 
 # ============================================================================
 # 7. DOWNLOAD DEM (EXTENDED AOI)
@@ -469,7 +620,7 @@ geojson_aoi = {
             "purpose": "Metrics calculation",
             "description": "Reduced area focused on glacier zone"
         },
-        "geometry": aoi_procesamiento.getInfo()
+        "geometry": aoi_processing.getInfo()
     }]
 }
 
@@ -478,7 +629,7 @@ with open('data/aoi_humboldt.geojson', 'w') as f:
 print('  data/aoi_humboldt.geojson')
 
 # EXTENDED AOI
-geojson_extendido = {
+geojson_extended = {
     "type": "FeatureCollection",
     "features": [{
         "type": "Feature",
@@ -493,7 +644,7 @@ geojson_extendido = {
 }
 
 with open('data/aoi_visualization.geojson', 'w') as f:
-    json.dump(geojson_extendido, f, indent=2)
+    json.dump(geojson_extended, f, indent=2)
 print(' data/aoi_visualization.geojson')
 
 # ============================================================================
@@ -606,10 +757,35 @@ metadata = {
             'adjustment_rule': 'If end date exceeds present, adjust to current date'
         },
         'ndsi_threshold': NDSI_THRESHOLD,
+        'ndsi_role': 'Pre-mask for unmixing candidate zone (>= 0.2) + quality control',
+        'ndsi_premask_threshold': NDSI_PREMASK_THRESHOLD,
+        'ndsi_premask_rationale': 'Excludes pure rock/vegetation from unmixing to prevent residual fraction accumulation over large AOI',
         'cloud_coverage_max': CLOUD_PCT_MAX,
         'spatial_resolution': f'{SCALE}m',
         'sensor': 'Sentinel-2 SR Harmonized',
-        'collection': 'COPERNICUS/S2_SR_HARMONIZED'
+        'collection': 'COPERNICUS/S2_SR_HARMONIZED',
+        
+        # Unmixing documentation
+        'area_estimation_method': {
+            'primary': 'NDSI-masked linear spectral unmixing (sub-pixel fractional cover)',
+            'secondary': 'Binary NDSI threshold (for comparison only)',
+            'unmixing_bands': UNMIX_BANDS,
+            'endmembers': ENDMEMBERS,
+            'endmember_source': 'Calibrated from pure pixels within AOI (2020 composite, n=14 images)',
+            'endmember_calibration': 'See data/endmember_calibration.json',
+            'spectral_separability': {
+                'snow_vs_rock': '43.0°',
+                'snow_vs_vegetation': '63.6°',
+                'rock_vs_vegetation': '21.1°',
+                'assessment': 'All GOOD (>10°)'
+            },
+            'constraints': ['sumToOne=True', 'nonNegative=True'],
+            'polygon_threshold': SNOW_FRACTION_THRESHOLD,
+            'references': [
+                'Painter et al. (2009) - Retrieval of subpixel snow covered area',
+                'Sirguey et al. (2009) - Subpixel monitoring of snow cover'
+            ]
+        }
     },
     # RGB image
     'rgb_export': {
@@ -651,6 +827,8 @@ metadata = {
     'data_quality': {
         'avg_images_per_year': round(df['images_count'].mean(), 1) if len(df) > 0 else 0,
         'avg_valid_pixels_pct': round(df['valid_pct'].mean(), 1) if len(df) > 0 else 0,
+        'avg_method_diff_pct': round(df['method_diff_pct'].mean(), 2) if len(df) > 0 else 0,
+        'avg_snow_fraction': round(df['mean_snow_fraction'].mean(), 4) if len(df) > 0 else 0,
         'years_high_quality': len(df[df['images_count'] >= 7]) if len(df) > 0 else 0,
         'years_medium_quality': len(df[(df['images_count'] >= 5) & (df['images_count'] < 7)]) if len(df) > 0 else 0,
         'years_low_quality': len(df[df['images_count'] < 5]) if len(df) > 0 else 0
@@ -673,7 +851,8 @@ metadata = {
     'glacier_polygons': {
         'generated': len(polygon_files),
         'years_available': sorted(list(polygon_files.keys())),
-        'files': {str(year): path for year, path in polygon_files.items()}
+        'files': {str(year): path for year, path in polygon_files.items()},
+        'method': f'Binary mask from snow_fraction >= {SNOW_FRACTION_THRESHOLD}, vectorized at 10m'
     },
     
     # Processing metadata
@@ -689,6 +868,8 @@ metadata = {
     # References
     'references': {
         'ndsi_method': 'Hall et al. (1995) - Remote Sensing of Environment',
+        'unmixing_method': 'Painter et al. (2009) - Remote Sensing of Environment',
+        'unmixing_validation': 'Sirguey et al. (2009) - Remote Sensing of Environment',
         'validation': 'Ramírez et al. (2020) - Arctic, Antarctic, and Alpine Research',
         'best_practices': 'WGMS, USGS Landsat, ESA Copernicus guidelines'
     }
@@ -727,11 +908,16 @@ print('    data/aoi_visualization.geojson')
 print('    data/processing_metadata.json')
 print(f'   data/glacier_polygons/*.geojson ({len(polygon_files)} files)')
 
+print('\n METHOD:')
+print(f'    Primary: Linear spectral unmixing ({len(ENDMEMBERS)} endmembers)')
+print(f'    Secondary: Binary NDSI >= {NDSI_THRESHOLD} (quality control)')
+print(f'    Polygon threshold: snow_fraction >= {SNOW_FRACTION_THRESHOLD}')
 
 print('\n DATA QUALITY:')
 if len(df) > 0:
     print(f'    Average images/year: {df["images_count"].mean():.1f}')
     print(f'    Average valid pixels: {df["valid_pct"].mean():.1f}%')
+    print(f'    Avg fractional vs binary diff: {df["method_diff_pct"].mean():+.2f}%')
     print(f'    High quality years (≥7 img): {len(df[df["images_count"] >= 7])}')
     print(f'    Medium quality years (5-6 img): {len(df[(df["images_count"] >= 5) & (df["images_count"] < 7)])}')
     print(f'    Low quality years (<5 img): {len(df[df["images_count"] < 5])}')

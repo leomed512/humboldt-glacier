@@ -179,7 +179,7 @@ def load_data():
 
 @st.cache_data
 def load_metadata():
-    """Load metadata with Model B info"""
+    """Load metadata with model info"""
     try:
         with open('data/processing_metadata.json', 'r') as f:
             return json.load(f)
@@ -213,23 +213,9 @@ def load_polygon(year):
 # ============================================================================
 
 def year_selector(key_prefix, label="Seleccionar año"):
-    """
-    Independent year selector for each section.
-    Each slider controls only its own section.
-    
-    Args:
-        key_prefix: Unique prefix ('kpi', 'map', '3d')
-        label: Selector label (user-facing, kept in Spanish)
-    
-    Returns:
-        Selected year for this section
-    """
+    """Independent year selector for each section."""
     st.markdown(f"**{label}:**")
-    
-    # Section-specific session state variable
     state_key = f'selected_year_{key_prefix}'
-    
-    # Create slider
     selected = st.select_slider(
         label=f"slider_{key_prefix}",
         options=available_years,
@@ -237,50 +223,43 @@ def year_selector(key_prefix, label="Seleccionar año"):
         key=f'{key_prefix}_slider',
         label_visibility="collapsed"
     )
-    
-    # Update section-specific state
     st.session_state[state_key] = selected
-    
     return selected
 
 # ============================================================================
 # INITIALIZATION
 # ============================================================================
 
-# Load data
 df = load_data()
 metadata = load_metadata()
 
-# Available years
 available_years = sorted(df['year'].tolist())
 year_min = int(df['year'].min())
 year_max = int(df['year'].max())
 
-# Wet/dry classification
 dry_threshold = 0.060
 df['year_type'] = df['snow_area_km2'].apply(
     lambda x: 'Húmedo' if x > dry_threshold else 'Seco'
 )
 
-# Load Model B info
-model_b = metadata.get('model_b', {})
-model_b_rate = model_b.get('rate_percent_per_year', -26.9)
-model_b_r2 = model_b.get('r_squared', 0.86)
-model_b_years = model_b.get('years_used', [2020, 2021, 2022, 2023, 2024, 2025])
+df_wet = df[df['year_type'] == 'Húmedo']
+df_dry = df[df['year_type'] == 'Seco']
+
+# Load model info
+model_info = metadata.get('model', {})
+model_rate = model_info.get('rate_pct_year', -30.5)
+model_r2 = model_info.get('r2', 0.87)
+model_years = model_info.get('years_used', [2020, 2021, 2022, 2023, 2024, 2025])
+model_projections = model_info.get('projections', {})
 
 # ============================================================================
-# SESSION STATE - INDEPENDENT SELECTORS
+# SESSION STATE
 # ============================================================================
 
-# KPI selector
 if 'selected_year_kpi' not in st.session_state:
     st.session_state.selected_year_kpi = year_max
-
-# Map selector
 if 'selected_year_map' not in st.session_state:
     st.session_state.selected_year_map = year_max
-
-# 3D selector
 if 'selected_year_3d' not in st.session_state:
     st.session_state.selected_year_3d = year_max
 
@@ -297,7 +276,6 @@ Glaciar La Corona
 
 st.markdown(f"### Monitoreo del Último glaciar de Venezuela · {year_min}-{year_max}")
 
-
 st.markdown("""
 Durante el último siglo el glaciar en el Pico Humboldt ha enfrentado una reducción acelerada de su superficie 
 debido al aumento de las temperaturas en los Andes Tropicales, uniéndose a las extintas *Nieves Eternas*
@@ -307,83 +285,11 @@ Con este escenario Venezuela se convierte en el primer país tropical en despedi
 abriendo interrogantes sobre la dinámica ecológica en estos ecosistemas de alta montaña y cómo se relaciona
 con el cambio climático.
             
-Este estudio combina el análisis de imágenes satelitales Sentinel-2, Modelo Digital de Terreno de Copernicus GLO-30 y validación por observaciones de campo y fotografías proporcionadas por guías de la asociación [UGAM](https://www.instagram.com/ugamvenezuela/)
+Este estudio combina el análisis de imágenes satelitales Sentinel-2, pre-máscara de NDSI, desmezclado espectral sub-píxel, DEM de Copernicus GLO-30 y observaciones de campo proporcionadas por guías de la asociación [UGAM](https://www.instagram.com/ugamvenezuela/)
 """)
 
 st.markdown("---")
 
-# ============================================================================
-# DYNAMIC KPIs WITH SELECTOR
-# ============================================================================
-
-st.markdown("""
-<h2><span class="material-icons">analytics</span> Estadísticas</h2>
-""", unsafe_allow_html=True)
-
-# Year selector
-selected_year = year_selector('kpi', 'Seleccionar año para análisis')
-
-# Selected year data
-area_selected = df.loc[df['year'] == selected_year, 'snow_area_km2'].values[0]
-type_selected = df.loc[df['year'] == selected_year, 'year_type'].values[0]
-ndsi_selected = df.loc[df['year'] == selected_year, 'ndsi_mean'].values[0]
-images_selected = df.loc[df['year'] == selected_year, 'images_count'].values[0]
-
-# Loss relative to 2020
-if 2020 in df['year'].values:
-    area_2020 = df.loc[df['year'] == 2020, 'snow_area_km2'].values[0]
-    loss_vs_2020 = area_selected - area_2020
-else:
-    loss_vs_2020 = 0
-
-col1, col2, col3, col4 = st.columns(4)
-
-col1.metric(
-    f"Área {selected_year}", 
-    f"{area_selected:.4f} km²", 
-    f"{loss_vs_2020:+.4f} km²",
-    help=f"Área del glaciar en {selected_year}. Delta respecto a 2020."
-)
-
-col2.metric(
-    "Tipo de Año", 
-    type_selected,
-    None,
-    help="Clasificación según umbral de 0.060 km². Húmedo: nieve estacional presente."
-)
-
-col3.metric(
-    "NDSI Promedio", 
-    f"{ndsi_selected:.3f}",
-    f"{images_selected} imágenes",
-    help="Índice de Diferencia Normalizada de Nieve. Basado en imágenes Sentinel-2."
-)
-
-col4.metric(
-    "Modelo (Secos)",
-    f"{model_b_rate:.2f}%/año",
-    f"R² = {model_b_r2:.2f}",
-    help="Tasa anual de retroceso según modelo exponencial ajustado a años secos."
-)
-
-with st.expander("Metodología del estudio", icon=":material/info:"):
-    st.markdown("""
-Este estudio muestra la dinámica reciente del área de hielo y nieve utilizando 
-imágenes satelitales Sentinel-2 y análisis espectral mediante el índice de diferencia 
-normalizada de nieve (NDSI). 
-
-De manera automatizada se consultaron decenas de imágenes Sentinel-2 desde la base de datos en la nube de Google Earth Engine (GEE) utilizando Python
-y se estimó y validó la superficie de nieve/hielo presente. Se evaluaron datos desde 2019 hasta 2026, (8 años) durante la época de sequía (diciembre-marzo), cuando 
-la cobertura de hielo es más representativa, al ser menos influenciada por nieve temporal, mostrando un aproximado realista de la superficie glaciar. Con los datos disponibles se estimó el año en el glaciar pasaría a la 
-categoría de parche de hielo o remanente glaciar y cuando podría desaparecer este remanente.
-                
-Cabe resaltar que el planteamiento original era obtener datos satelitales desde 2015 pero la zona presentó nubosidad muy elevada, lo que dificultó la adquisición de imágenes satelitales viables para el periodo 2015-2018. Por otra parte, los años 2019 y 2026 presentaron una cobertura de nieve estacional muy elevada, por lo que fueron excluídos del análisis más profundo. Estos dos años estuvieron influenciados por una temporada de lluvias especialmente elevada, lo fue confirmado por guías de montaña [UGAM](https://www.instagram.com/ugamvenezuela/) a través de fotografías e información de campo.
-
-Los datos fueron contrastados con estudios similares recientes como Ramírez et al. (2020) y productos Sentinel-2 de la Agencia Espacial Europea (ESA).Teniendo en cuenta las diferencias metodológicas entre estas fuentes, se obtuvieron resultados aceptables para ser un estudio exploratorio, apoyando a la continuidad del 
-monitoreo de este emblemático ecosistema andino con herramientas modernas de análisis geoespacial.
-""")
-
-st.markdown("---")
 
 # ============================================================================
 # 2D INTERACTIVE MAP WITH SELECTOR
@@ -393,89 +299,41 @@ st.markdown("""
 <h2><span class="material-icons">map</span> Mapa Interactivo</h2>
 """, unsafe_allow_html=True)
 
-# Year selector
 current_year = year_selector('map', 'Seleccionar año')
 
-# Get selected year data for the map
 area_map = df.loc[df['year'] == current_year, 'snow_area_km2'].values[0]
 ndsi_map = df.loc[df['year'] == current_year, 'ndsi_mean'].values[0]
 type_map = df.loc[df['year'] == current_year, 'year_type'].values[0]
 
-# Create map
-m = folium.Map(
-    location=[8.5505, -70.998],
-    zoom_start=15,
-    control_scale=True,
-    tiles=None
-)
+m = folium.Map(location=[8.5505, -70.998], zoom_start=15, control_scale=True, tiles=None)
 
-# Satellite base layer
 folium.TileLayer(
     tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    attr='Esri',
-    name='Satélite',
-    overlay=False,
-    control=True,
-    show=True
+    attr='Esri', name='Satélite', overlay=False, control=True, show=True
 ).add_to(m)
-
-# Topographic layer
 folium.TileLayer(
     tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
-    attr='Esri',
-    name='Terreno',
-    overlay=False,
-    control=True,
-    show=False
+    attr='Esri', name='Terreno', overlay=False, control=True, show=False
 ).add_to(m)
 
-# Glacier polygon
-glacier_layer = folium.FeatureGroup(
-    name=f'Glaciar {current_year}', 
-    overlay=True, 
-    control=True, 
-    show=True
-)
-
+glacier_layer = folium.FeatureGroup(name=f'Glaciar {current_year}', overlay=True, control=True, show=True)
 polygon_gdf = load_polygon(current_year)
 
 if polygon_gdf is not None:
     folium.GeoJson(
         polygon_gdf,
-        style_function=lambda x: {
-            'fillColor': '#3498db',
-            'color': '#2980b9',
-            'weight': 2,
-            'fillOpacity': 0.7
-        },
-        tooltip=folium.Tooltip(
-            f'Glaciar {current_year}: {area_map:.4f} km²', 
-            sticky=True
-        )
+        style_function=lambda x: {'fillColor': '#3498db', 'color': '#2980b9', 'weight': 2, 'fillOpacity': 0.7},
+        tooltip=folium.Tooltip(f'Glaciar {current_year}: {area_map:.4f} km²', sticky=True)
     ).add_to(glacier_layer)
 else:
     radius_m = np.sqrt(area_map * 1e6 / np.pi)
-    folium.Circle(
-        location=[8.5505, -70.998],
-        radius=radius_m,
-        color='#2980b9',
-        fill=True,
-        fillColor='#3498db',
-        fillOpacity=0.7,
-        weight=2,
-        tooltip=f'Glaciar {current_year} (aprox.)'
-    ).add_to(glacier_layer)
+    folium.Circle(location=[8.5505, -70.998], radius=radius_m, color='#2980b9',
+                  fill=True, fillColor='#3498db', fillOpacity=0.7, weight=2,
+                  tooltip=f'Glaciar {current_year} (aprox.)').add_to(glacier_layer)
 
 glacier_layer.add_to(m)
 
-# Peak marker
-markers_layer = folium.FeatureGroup(
-    name='Pico Humboldt', 
-    overlay=True, 
-    control=True, 
-    show=True
-)
-
+markers_layer = folium.FeatureGroup(name='Pico Humboldt', overlay=True, control=True, show=True)
 folium.Marker(
     location=[8.5505, -70.998],
     popup=folium.Popup(f"""
@@ -490,217 +348,239 @@ folium.Marker(
     """, max_width=200),
     icon=folium.Icon(color='red', icon='mountain', prefix='fa')
 ).add_to(markers_layer)
-
 markers_layer.add_to(m)
 
-# Layer control
 folium.LayerControl(position='topright', collapsed=True).add_to(m)
-
-# CSS for semi-transparent control
 m.get_root().html.add_child(folium.Element("""
 <style>
-.leaflet-control-layers {
-    background: rgba(255, 255, 255, 0.75) !important;
-    backdrop-filter: blur(5px);
-}
-.leaflet-control-layers-expanded {
-    background: rgba(255, 255, 255, 0.7) !important;
-}
+.leaflet-control-layers { background: rgba(255, 255, 255, 0.75) !important; backdrop-filter: blur(5px); }
+.leaflet-control-layers-expanded { background: rgba(255, 255, 255, 0.7) !important; }
 </style>
 """))
 
-# Render
 st_folium(m, width=None, height=600, returned_objects=[])
 
 st.caption(
     f"**Año {current_year}:** {area_map:.4f} km² | "
-    f"NDSI: {ndsi_map:.2f} | "
-    f"Tipo: {type_map}"
+    f"NDSI: {ndsi_map:.2f} | Tipo: {type_map}"
 )
 
 st.markdown("---")
 
 # ============================================================================
-# CHART: TEMPORAL EVOLUTION
+# DYNAMIC KPIs WITH SELECTOR
 # ============================================================================
 
 st.markdown("""
-<h2><span class="material-icons">insights</span> Evolución Temporal</h2>
+<h2><span class="material-icons">analytics</span> Estadísticas</h2>
 """, unsafe_allow_html=True)
-screen_width = streamlit_js_eval(
-    js_expressions='window.innerWidth',
-    key='SCREEN_WIDTH_TEMPORAL',
-    want_output=True
+
+selected_year = year_selector('kpi', 'Seleccionar año para análisis')
+
+area_selected = df.loc[df['year'] == selected_year, 'snow_area_km2'].values[0]
+type_selected = df.loc[df['year'] == selected_year, 'year_type'].values[0]
+ndsi_selected = df.loc[df['year'] == selected_year, 'ndsi_mean'].values[0]
+images_selected = df.loc[df['year'] == selected_year, 'images_count'].values[0]
+
+if 2020 in df['year'].values:
+    area_2020_ref = df.loc[df['year'] == 2020, 'snow_area_km2'].values[0]
+    loss_vs_2020 = area_selected - area_2020_ref
+else:
+    loss_vs_2020 = 0
+
+col1, col2, col3, col4 = st.columns(4)
+
+col1.metric(
+    f"Área {selected_year}", f"{area_selected:.4f} km²", f"{loss_vs_2020:+.4f} km²",
+    help=f"Área del glaciar en {selected_year}. Delta respecto a 2020."
+)
+col2.metric(
+    "Tipo de Año", type_selected, None,
+    help="Clasificación según umbral de 0.060 km². Húmedo: nieve estacional presente."
+)
+col3.metric(
+    "NDSI Promedio", f"{ndsi_selected:.3f}", f"{images_selected} imágenes",
+    help="Índice de Diferencia Normalizada de Nieve. Basado en imágenes Sentinel-2."
+)
+col4.metric(
+    "Modelo (Secos)", f"{model_rate:.2f}%/año", f"R² = {model_r2:.2f}",
+    help="Tasa anual de retroceso según modelo exponencial ajustado a años secos."
 )
 
-if screen_width is None:
-    screen_width = 700
+with st.expander("**Metodología del análisis geoespacial**", icon=":material/info:"):
+    st.markdown(f"""
+Este estudio cuantifica la dinámica reciente del área de hielo y nieve mediante imágenes satelitales **Sentinel-2**, combinando una **pre-máscara espectral basada en NDSI** con **desmezclado espectral lineal totalmente restringido** (*Fully Constrained Linear Spectral Unmixing, FCLSU*) para estimar la cobertura de nieve a nivel subpíxel. El script usa el valor refinado con el FCLSU como métrica principal del estudio y compara ese resultado con el método NDSI tradicional. 
 
-is_mobile = screen_width < 700
+#### **Enfoque inicial: estimación de superficie nival mediante NDSI**
 
-left_margin = 0 if is_mobile else 70
-right_margin = 15 if is_mobile else 50
-fig = go.Figure()
+Inicialmente se utilizó el método convencional NDSI (*Normalized Difference Snow Index*). Sin embargo, debido a la naturaleza del índice, al reducido tamaño del glaciar y a la resolución espacial de la banda SWIR (20 m), este enfoque tiende a **sobrestimar la superficie glaciar**, principalmente por la inclusión de nieve estacional y por la presencia de píxeles mixtos en los bordes.
 
-# Separate years by type
-df_wet = df[df['year_type'] == 'Húmedo']
-df_dry = df[df['year_type'] == 'Seco']
+#### **Desmezclado espectral (Spectral Unmixing)**
 
-# Adjusted scale
-y_min = df['snow_area_km2'].min() * 0.85
-y_max = df['snow_area_km2'].max() * 1.05
+Para corregir este sesgo, se implementó el **desmezclado espectral**, que descompone cada píxel en fracciones de nieve, roca y vegetación, permitiendo una estimación más realista en zonas del borde irregular del glaciar donde predominan los píxeles mixtos (Painter et al., 2009; Sirguey et al., 2009)
 
-# Trend line
-fig.add_trace(go.Scatter(
-    x=df['year'],
-    y=df['snow_area_km2'],
-    mode='lines',
-    name='Tendencia observada',
-    line=dict(color='#95a5a6', width=1.5, dash='dot'),
-    showlegend=False,
-    hoverinfo='skip'
-))
+El modelo fue calibrado a partir de puntos de referencia identificados en el área de estudio mediante fotointerpretación en QGIS y validados mediante análisis de separabilidad espectral. Posteriormente, para aumentar su robustez, se aplicó una **pre-máscara NDSI (> 0.2)** con el fin de ejecutar el unmixing únicamente en las zonas con alta probabilidad de presencia de nieve o hielo.
 
-# Dry years
-fig.add_trace(go.Scatter(
-    x=df_dry['year'],
-    y=df_dry['snow_area_km2'],
-    mode='lines+markers+text',
-    name='Años secos',
-    marker=dict(size=12, color='#e74c3c', symbol='circle'),
-    line=dict(color='#e74c3c', width=2, dash='dot'),
-    text=None if is_mobile else [f'{area:.4f}' for area in df_dry['snow_area_km2']],
-    textposition='top center',
-    textfont=dict(size=9, color='#e74c3c'),
-    hovertemplate='<b>%{x}</b><br>Área: %{y:.4f} km²<extra></extra>'
-))
+A partir de este procedimiento se derivaron dos métricas:
 
-# Wet years
-fig.add_trace(go.Scatter(
-    x=df_wet['year'],
-    y=df_wet['snow_area_km2'],
-    mode='markers+text',
-    name='Años húmedos',
-    marker=dict(size=8, color='#20959e', symbol='x'),
-    text=None if is_mobile else [f'{area:.4f}' for area in df_dry['snow_area_km2']],
-    textposition='top center',
-    textfont=dict(size=9, color='#20959e'),
-    hovertemplate='<b>%{x}</b><br>Área: %{y:.4f} km²<extra></extra>'
-))
+- **Sub-pixel unmixing:** suma de las fracciones estimadas de cada cobertura multiplicadas por el área del píxel. Esta es la **métrica principal** del estudio.
+- **Binary unmixing:** conteo de píxeles con fracción de nieve ≥ 0.5, multiplicados por el área total del píxel.
 
-# Ramírez data points
-ramirez_years = [2018, 2019]
-ramirez_areas = [0.079, 0.046]
 
-fig.add_trace(go.Scatter(
-    x=ramirez_years,
-    y=ramirez_areas,
-    mode='markers',
-    name='Ramírez et al. 2020',
-    marker=dict(size=10, color='#27ae60', symbol='diamond'),
-    hovertemplate='<b>%{x}</b> (Ramírez)<br>Área: %{y:.3f} km²<extra></extra>'
-))
+#### **Mejoría de la estimación mediante FCLSU**
 
-# Model B
-if 'parameters' in model_b:
-    params = model_b['parameters']
-    a, k, t0 = params['a'], params['k'], params['t0']
+La utilidad del desmezclado espectral se evidencia al comparar sus resultados de 2020 con la estimación original basada en NDSI y con la referencia independiente de Ramírez et al. (2020) para el año 2019. Salvando las diferencias metodológicas y temporales, la comparación sigue siendo valiosa porque el glaciar se encuentra en una fase de retroceso acelerado, por lo que un incremento de superficie entre 2019 y 2020 resultaría físicamente poco probable. 
+                
+Bajo ese criterio, el valor estimado por FCLSU se aproxima más al orden de magnitud esperado y **reduce en 36.1% la sobreestimación inicialmente observada con el NDSI**.
+
+#### **Análisis multitemporal**
+
+Para la serie multitemporal se analizaron datos entre **2019 y 2026** (8 años) durante la estación seca (diciembre-marzo), cuando la cobertura de hielo es más representativa. Los años 2019 y 2026 fueron excluidos del modelo por presentar nieve estacional elevada, lo cual fue **confirmado por guías de montaña** [UGAM](https://www.instagram.com/ugamvenezuela/). De hecho, un análisis exploratorio de la distribución temporal, clasificó cuantitativamente a estos como años **“atípicos”**, usando un umbral de **0.060 km²**, estimado por IQR.
+                
+Se buscó además incorporar observaciones desde 2015, pero esos años fueron omitidos por ausencia de imágenes Sentinel-2 utilizables por la alta nubosidad en el área. Se trabaja actualmente en técnicas para obtener información sobre estos años y mejorar el modelo predictivo para mejor monitoreo automatizado a futuro.
+                
+**Procedimiento detallado en Python disponible en el repositorio de** [GitHub](https://github.com/leomed512/humboldt-glacier)
+                
+""")
+
+st.markdown("---")
+
+
+# ============================================================================
+# PROJECTION GRAPH
+# ============================================================================
+
+st.markdown("""
+<h2><span class="material-icons">trending_down</span> Proyección</h2>
+""", unsafe_allow_html=True)
+
+# Projection plot image
+projection_img_path = 'results/plots/03_proyection.png'
+if Path(projection_img_path).exists():
+    st.image(projection_img_path, width="stretch")
+
+area_2020_val = df.loc[df['year'] == 2020, 'snow_area_km2'].values[0] if 2020 in df['year'].values else None
+if area_2020_val:
+    diff_ramirez = ((area_2020_val - 0.046) / 0.046) * 100
+    st.markdown(
+
+        f"**Puntos verdes**: Ramírez et al. (2020). "
+        f"**Variación entre estudios**: +{diff_ramirez:.1f}% (2020 vs Ramírez 2019)."
+        f"** Nota:** Años húmedos ({', '.join(map(str, df_wet['year'].tolist()))}) "
+        f"presentan nieve estacional inusual y fueron excluidos del modelo predictivo. "
+    )
+
+# Reclassification
+reclass_info = model_projections.get('reclassification', {})
+reclass_year = reclass_info.get('year')
+reclass_unc = reclass_info.get('uncertainty_years', 2)
+
+if reclass_year:
+    st.warning(
+        f"**Proyección:** Con la tasa actual de {model_rate:.2f}%/año, "
+        f"el glaciar dejará de calificar como tal en **~{int(reclass_year)}** "
+        f"(±{reclass_unc} años), pasando a ser un **parche de hielo** "
+        f"según la clasificación de Huss & Fischer (2016).",
+        icon=":material/warning:"
+    )
+# Model info
+uncertainty = model_info.get('uncertainty', {})
+st.info(
+    f"**Modelo:** Exponencial · Años secos ({min(model_years)}-{max(model_years)}, n={len(model_years)}) · "
+    f"R² = {model_r2:.3f} · RMSE = ±{uncertainty.get('model_rmse_km2', 0.0):.4f} km²",
+    icon=":material/info:"
+)
+# Disappearance
+disappear_info = model_projections.get('disappearance', {})
+disappear_year = disappear_info.get('year')
+disappear_unc = disappear_info.get('uncertainty_years', 3)
+
+if disappear_year:
+    st.error(
+        f"**Desaparición estimada:** El remanente de hielo sería indetectable "
+        f"por Sentinel-2 aproximadamente en **~{int(disappear_year)}** "
+        f"(±{disappear_unc} años) si continúa la tendencia.",
+        icon=":material/error:"
+    )
+
+
+
+# ── Technical expanders ───────────────────────────────────────────────
+
+with st.expander("Selección del modelo", icon=":material/compare:"):
+    st.markdown(f"""
+Para explicar el comportamiento actual y a futuro de la dinámica del cuerpo de hielo se evaluaron varios modelos predictivos: **exponencial, lineal y polinomial** sobre los años secos (n={len(model_years)}) ya que la nieve estacional abundante de 2019 y 2026 destruía la confiabilidad de los modelos.
+La selección se realizó mediante **AICc** (Akaike Information Criterion corregido para muestras pequeñas, 
+Burnham & Anderson, 2002).
+
+El modelo **exponencial** fue seleccionado por su  ajuste estadístico comparable (R²=0.87) y su compatibilidad con la naturaleza de los glaciares en fase terminal, donde
+la tasa de pérdida es proporcional al área actual (Huss & Fischer, 2016). El modelo lineal 
+presentó un ajuste estadístico comparable (R² similar) pero no permite proyecciones de desaparición 
+físicamente coherentes.
+
+**Ecuación:** {model_info.get('equation', 'N/A')}
+""")
+
+# ── Analysis plots expander ───────────────────────────────────────────
+
+with st.expander("Gráficos del análisis adicionales", icon=":material/bar_chart:"):
     
-    years_fit = np.linspace(min(model_b_years), max(model_b_years) + 0.6, 100)
-    area_fit = a * np.exp(k * (years_fit - t0))
+    # Serie temporal
+    serie_path = 'results/plots/01_time_series.png'
+    if Path(serie_path).exists():
+        st.markdown("**Evolución temporal**")
+        st.image(serie_path, width="stretch")
+        st.caption(
+            "Serie temporal completa con datos de Ramírez et al. (2020) como referencia. Se observa el retroceso sostenido de la superficie, incrementándose en lo últimos 2 años. \n\n"
+
+            "El modelo exponencial se ajusta a los años secos para explicar su comportamiento y hacer estimaciones de su dinámica a largo plazo. "
+            "Los años húmedos muestran el efecto de la nieve estacional y han sido excluídos del modelo."
+        )
+        st.markdown("---")
     
-    fig.add_trace(go.Scatter(
-        x=years_fit,
-        y=area_fit,
-        mode='lines',
-        name=f'Modelo exponencial ({model_b_rate:.2f}%/año)',
-        line=dict(color='#f39c12', width=2),
-        hovertemplate='Año: %{x:.1f}<br>Proyección: %{y:.4f} km²<extra></extra>'
-    ))
+    # Variabilidad y anomalías
+    var_path = 'results/plots/02_annual_variability.png'
+    if Path(var_path).exists():
+        st.markdown("**Variabilidad interanual y anomalías**")
+        st.image(var_path, width="stretch")
+        st.caption(
+            "**Panel superior:** cambio absoluto año a año. La caída más abrupta ocurrió entre 2019-2020 "
+            "(-73%), seguida de una relativa estabilización 2021-2023 y nueva caída en 2024-2025. El año 2026 vuelve a mostrar presencia de gran cantidad de nieve estacional. \n\n"
 
-# Layout configuration
-fig.update_layout(
-    xaxis=dict(
-        title=dict(
-            text='Año',
-            font=dict(size=13, color='#1a1a1a')
-        ),
-        showgrid=True,
-        gridcolor='rgba(200, 200, 200, 0.4)',
-        showline=True,
-        linewidth=2,
-        linecolor='#2c3e50',
-        mirror=True,
-        range=[2017.7, 2026.6],
-        tickfont=dict(size=11, color='#2c3e50', family='Arial')
-    ),
-    yaxis=dict(
-        title=dict(
-            text='Área de nieve (km²)' if not is_mobile else '',
-            font=dict(size=13, color='#1a1a1a')
-        ),
-        showgrid=True,
-        gridcolor='rgba(200, 200, 200, 0.4)',
-        showline=True,
-        linewidth=2,
-        linecolor='#2c3e50',
-        mirror=True,
-        range=[y_min - 0.009, y_max + 0.020],
-        tickfont=dict(size=11, color='#2c3e50', family='Arial')
-    ),
-    hovermode='x unified',
-    height=500,
-    plot_bgcolor='white',
-    paper_bgcolor='white',
-    font=dict(color='#2c3e50', size=12, family='Arial'),
-    legend=dict(
-        orientation="h",
-        yanchor="top" if is_mobile else "bottom",
-        y=-0.22 if is_mobile else 1.02,
-        xanchor="center" if is_mobile else "right",
-        x=0.5 if is_mobile else 1,
-        bgcolor='rgba(255,255,255,0.9)',
-        bordercolor='#34495e',
-        borderwidth=2,
-        font=dict(size=11, color='#2c3e50', family='Arial')
-    ),
-    margin=dict(l=left_margin , r=right_margin, t=40, b=50)
-)
+            "**Panel inferior:** desviación de la estimación de cada año respecto al modelo exponencial. "
+            "Los años húmedos (barras azules) representan anomalías positivas por nieve estacional."
+        )
+        st.markdown("---")
+    
+    # Comparación de métodos
+    comp_path = 'results/plots/04_method_comparision.png'
+    if Path(comp_path).exists():
+        st.markdown("**Comparación de métodos de estimación**")
+        st.image(comp_path, width="stretch")
+        st.caption(
+            "**Panel superior**: presenta la evolución del área glaciar estimada mediante tres enfoques: NDSI, unmixing binario y FCLSU subpíxel. El método NDSI reporta consistentemente valores superiores, evidenciando una tendencia a sobreestimar la cobertura nival. En contraste, los enfoques basados en desmezclado espectral (especialmente FCLSU -utilizada como métrica principal-) generan estimaciones más conservadoras al modelar explícitamente la fracción de nieve dentro de cada píxel. \n\n"
 
-st.plotly_chart(fig, width='stretch')
+             "Panel inferior: muestra cuánto corrige el FCLSU respecto al NDSI (%). Todos los valores son negativos, lo que indica que el unmixing reduce el área estimada al tratar los píxeles mixtos de forma fraccional en lugar de contarlos completos. \n\n" 
+             "" 
 
-st.markdown(
-    f"**Nota:** Años húmedos ({', '.join(map(str, df_wet['year'].tolist()))}) "
-    f"presentan nieve estacional inusualmente abundante, afectando predicciones. "
-    f"Por lo tanto el modelo predictivo fue ajustado a años secos, con buena precisión (R² = {model_b_r2:.2f}).\n\n"
-    f"Puntos verdes: Ramírez et al. (2020), fotointerpretación manual submétrica. La diferencia de +28,4% respecto a este estudio (0.058 vs 0.046 km²) es esperable dada la resolución de Sentinel-2 (10-20 m) y la diferencia interanual (2020 vs 2019). Ambos resultados convergen en la tendencia de retroceso acelerado. "
-)
-
-st.warning(
-    f"Según este estudio, La Corona dejaría de considerarse un Glaciar aproximadamente en 2025 (±2 años) "
-    f"para pasar a ser un Parche de Hielo según Benn & Evans (2010).\n\n"
-    f"Desaparición total estimada: aproximadamente 2040 (±3 años)."
-)
+             "La línea punteada marca el promedio (~-16.7%), en que el NDSI sobreestima el área glaciar. Esta corrección es mayor en los últimos años, cuando el glaciar es más pequeño y los bordes (píxeles mixtos) influyen más."
+        )
 
 st.markdown("---")
 
 # ============================================================================
 # 3D TOPOGRAPHY WITH SELECTOR
 # ============================================================================
-# Detect browser screen width
-screen_width = streamlit_js_eval(js_expressions='window.innerWidth', key='SCREEN_WIDTH', want_output=True)
 
-# Fallback in case value is not returned on first render
+screen_width = streamlit_js_eval(js_expressions='window.innerWidth', key='SCREEN_WIDTH', want_output=True)
 if screen_width is None:
     screen_width = 700
-
 is_mobile = screen_width <= 700
 
 st.markdown("""
 <h2><span class="material-icons">satellite</span> Topografía 3D</h2>
 """, unsafe_allow_html=True)
 
-# Year selector
 current_year_3d = year_selector('3d', 'Seleccionar año')
 
 dem, bounds = load_dem()
@@ -713,23 +593,13 @@ if dem is not None and bounds is not None:
 
     fig_3d = go.Figure()
     
-    # Surface with topographic palette
     fig_3d.add_trace(go.Surface(
-        x=x_grid,
-        y=y_grid,
-        z=dem,
-        colorscale='Earth',
-        showscale=not is_mobile, # Better UI on mobile
-        colorbar=dict(
-        title='Elevación (m)',
-        x=1.1,
-        tickfont=dict(size=10)
-    ) if not is_mobile else None,
-        hovertemplate='Elev: %{z:.0f} m<extra></extra>',
-        name='DEM'
+        x=x_grid, y=y_grid, z=dem, colorscale='Earth',
+        showscale=not is_mobile,
+        colorbar=dict(title='Elevación (m)', x=1.1, tickfont=dict(size=10)) if not is_mobile else None,
+        hovertemplate='Elev: %{z:.0f} m<extra></extra>', name='DEM'
     ))
     
-    # Glacier polygon in 3D
     polygon_gdf_3d = load_polygon(current_year_3d)
     if polygon_gdf_3d is not None:
         for geom in polygon_gdf_3d.geometry:
@@ -737,52 +607,35 @@ if dem is not None and bounds is not None:
                 coords = list(geom.exterior.coords)
                 lons = [c[0] for c in coords]
                 lats = [c[1] for c in coords]
-                
-                # Interpolate elevation
                 elevations = []
                 for lon, lat in zip(lons, lats):
                     i = np.argmin(np.abs(y - lat))
                     j = np.argmin(np.abs(x - lon))
                     elevations.append(dem[i, j] + 15)
-                
-                # 3D glacier mesh
                 fig_3d.add_trace(go.Mesh3d(
-                    x=lons,
-                    y=lats,
-                    z=elevations,
-                    color='cyan',
-                    opacity=0.6,
-                    name=f'Glaciar {current_year_3d}',
-                    showscale=False,
+                    x=lons, y=lats, z=elevations, color='cyan', opacity=0.6,
+                    name=f'Glaciar {current_year_3d}', showscale=False,
                     hovertemplate=f'Glaciar {current_year_3d}<extra></extra>'
                 ))
 
-    # Layout configuration
     fig_3d.update_layout(
         scene=dict(
             zaxis_title='Elevación (m)',
             camera=dict(
                 eye=dict(x=-0.7, y=-0.7, z=0.7) if not is_mobile else dict(x=-0.9, y=-0.9, z=0.55),
-
                 center=dict(x=0, y=0, z=-0.1)
             ),
-            aspectmode='manual',
-            aspectratio=dict(x=1, y=1, z=0.3)
-
-
+            aspectmode='manual', aspectratio=dict(x=1, y=1, z=0.3)
         ),
-        height=600,
-        template='plotly_dark',
-        showlegend=False
+        height=600, template='plotly_dark', showlegend=False
     )
 
-    st.plotly_chart(fig_3d, width='stretch')
+    st.plotly_chart(fig_3d, width="stretch")
     st.caption(f"DEM: Copernicus GLO-30 (30 m) | Polígono cyan: Glaciar {current_year_3d}")
 else:
     st.error("DEM no disponible")
 
 st.markdown("---")
-
 
 # ============================================================================
 # COMPARATIVE IMAGE 2020 vs 2025
@@ -795,154 +648,39 @@ st.markdown("""
 comparative_img_path = 'results/plots/comparison_2020_2025.png'
 
 if Path(comparative_img_path).exists():
-    
     col1, col2, col3 = st.columns([1, 2, 1])
-    
     with col2:
-        st.image(
-            comparative_img_path,
-            caption="Vista previa",
-            width="content"
-        )
-    
-   
+        st.image(comparative_img_path, caption="Vista previa", width="stretch")
 else:
     st.warning("Imagen comparativa no disponible. Ejecuta Script 02.")
 
 st.markdown("---")
 
 # ============================================================================
-# DISAPPEARANCE PROJECTION
-# ============================================================================
-
-st.markdown("""
-<h2><span class="material-icons">trending_down</span> Proyección de Desaparición</h2>
-""", unsafe_allow_html=True)
-
-if 'projections' in model_b:
-    proj = model_b['projections']
-    
-    # Glacier threshold
-    if 'glacier_threshold' in proj and proj['glacier_threshold'].get('valid', False):
-        glacier_proj = proj['glacier_threshold']
-        glacier_year = glacier_proj['year']
-        uncertainty = glacier_proj.get('uncertainty_years', 2)
-        
-        st.warning(
-            f"**Proyección:** Con tasa actual de {model_b_rate:.2f}%/año, "
-            f"el glaciar dejará de calificar como tal en **{int(glacier_year)}** "
-            f"(±{uncertainty} años). Pasará a ser un parche de hielo.",
-            icon=":material/warning:"
-        )
-    
-        st.info(
-            f"""
-            **Metodología:** Modelo exponencial ajustado a años secos ({min(model_b_years)}-{max(model_b_years)})  
-            **Precisión:** R² = {model_b_r2:.3f} | RMSE = ±{model_b.get('uncertainty', {}).get('model_rmse_km2', 0.0):.4f} km² | IC 95% = ±{model_b.get('uncertainty', {}).get('confidence_interval_95pct_km2', 0.0):.4f} km²  
-            """,
-            icon=":material/info:"
-        )
-
-    # Total disappearance
-    if 'total_disappearance' in proj and proj['total_disappearance'].get('valid', False):
-        disappearance_proj = proj['total_disappearance']
-        disappearance_year = disappearance_proj['year']
-        disappearance_uncertainty = disappearance_proj.get('uncertainty_years', 3)
-        
-        st.error(
-            f"**Desaparición total estimada:** aproximadamente **{int(disappearance_year)}** "
-            f"(±{disappearance_uncertainty} años) si continúa la tendencia.",
-            icon=":material/error:"
-        )
-else:
-    st.warning(
-        "Proyecciones no disponibles. Verifica que Script 02 haya actualizado metadata correctamente.",
-        icon=":material/warning:"
-    )
-
-# ============================================================================
-# MODEL COMPARISON
-# ============================================================================
-
-with st.expander("Comparación de modelos alternativos", icon=":material/compare:"):
-    st.markdown("""
-    Se evaluaron 3 modelos de regresión para proyectar el retroceso glaciar. 
-    El modelo exponencial fue seleccionado por presentar el **menor AIC** 
-    (Akaike Information Criterion), indicando el mejor balance entre ajuste y complejidad.
-    """)
-    
-    # Check if comparison file exists
-    comp_path = Path('results/model_comparison.csv')
-    
-    if comp_path.exists():
-        df_comp = pd.read_csv(comp_path)
-        
-        # Format table
-        df_comp_display = df_comp[['model', 'params', 'r2', 'rmse', 'aic', 'rate_of_change']].copy()
-        df_comp_display.columns = ['Modelo', 'Parámetros', 'R²', 'RMSE (km²)', 'AIC', 'Tasa (%/año)']
-        
-        # Round values
-        df_comp_display['R²'] = df_comp_display['R²'].round(4)
-        df_comp_display['RMSE (km²)'] = df_comp_display['RMSE (km²)'].round(6)
-        df_comp_display['AIC'] = df_comp_display['AIC'].round(2)
-        df_comp_display['Tasa (%/año)'] = df_comp_display['Tasa (%/año)'].apply(
-            lambda x: f"{x:.2f}" if pd.notna(x) else "N/A"
-        )
-        
-        # Highlight selected model
-        st.dataframe(
-            df_comp_display,
-            hide_index=True,
-            width='stretch',
-            height=150
-        )
-        
-        st.caption(
-            "**AIC (Akaike Information Criterion):** Menor valor = mejor modelo. "
-            "Penaliza complejidad (número de parámetros) favoreciendo parsimonia."
-        )
-    else:
-        st.warning("Tabla de comparación no disponible.")
-    
-    # Technical explanation
-    st.markdown("""
-    ### Interpretación
-    
-    **Modelo Exponencial (seleccionado):**
-    - Representa retroceso acelerado típico de glaciares en fase terminal
-    - 3 parámetros: área inicial (a), tasa de cambio (k), año base (t₀)
-    - R² = 0.86 indica que explica 86% de la variabilidad observada
-    
-    **Modelo Lineal:**
-    - Asume retroceso constante (no acelerado)
-    - Menos parámetros (2) pero peor ajuste
-    - No captura dinámica exponencial de derretimiento
-    
-    **Modelo Polinomial:**
-    - Mismo número de parámetros que exponencial
-    - AIC mayor indica sobreajuste sin ganancia explicativa
-    """)
-
-st.markdown("---")
-
-# ============================================================================
-# RAMÍREZ VALIDATION
+# VALIDATION
 # ============================================================================
 
 st.markdown("""
 <h2><span class="material-icons">verified</span> Validación Comparativa</h2>
 """, unsafe_allow_html=True)
 
-st.markdown("""
+if area_2020_val:
+    diff_pct = ((area_2020_val - 0.046) / 0.046) * 100
+    st.markdown(f"""
 Este análisis se comparó con **Ramírez et al. (2020)**,
 *"The end of the eternal snows: Integrative mapping of 100 years of glacier retreat in the Venezuelan Andes"*,
-publicado en *Arctic, Antarctic, and Alpine Research*
+publicado en *Arctic, Antarctic, and Alpine Research*.
 
-La diferencia del +28.4% en área detectada (0.058 km² en 2020 vs. 0.046 km² en 2019 de Ramírez et al. 2020) refleja las limitaciones esperadas de comparar fotogrametría submétrica con análisis espectral (NDSI) con imágenes satelitales Sentinel-2 (10-20m), el cual puede sobrestimar la superficie glaciar debido a nieve estacional. 
-            
-Sin embargo, ambos estudios **convergen en la conclusión crítica**: 
-el glaciar está en fase terminal con retroceso acelerado en un rango equivalente.
+La variación de +{diff_pct:.1f}% es consistente con las diferencias de resolución espacial 
+(fotogrametría submétrica vs Sentinel-2 a 10-20 m) y año de referencia (2019 vs 2020*), ambos se encuentran en un rango coherente.
 
+- **Ramírez et al. (2020):** Para 2019 reportaron **0.046 km²** (fotointerpretación manual )
+- **Este estudio (2020):** **{area_2020_val:.4f} km²** (desmezclado espectral sub-píxel Sentinel-2)
+- **Variación:** **+{diff_pct:.1f}%**
+
+* Se eligió 2020 como punto de comparación debido a que 2019 presentó cobertura elevada de nieve 
+estacional, **confirmado por reportes de campo de guías de montaña** 
+[UGAM](https://www.instagram.com/ugamvenezuela/).
 
 Este estudio establece un protocolo de **monitoreo continuo y reproducible** 
 que complementa —no reemplaza— estudios de alta precisión, permitiendo alertas tempranas 
@@ -966,7 +704,7 @@ st.markdown(
         <a href="https://github.com/leomed512/humboldt-glacier" 
            target="_blank" 
            style="text-decoration: none; color: #9aa0a6;">
-            GitHub • Leonardo Medina
+           GitHub • Leonardo Medina
         </a>
     </div>
     """,

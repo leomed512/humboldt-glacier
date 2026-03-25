@@ -4,18 +4,6 @@ Endmember calibration for spectral unmixing - Pico Humboldt Glacier
 Extracts real spectral signatures from pure pixels within the AOI
 to replace library-based endmember estimates.
 
-Run ONCE before processing. Output values go into ENDMEMBERS dict
-in script_01_processing_gee.py.
-
-Methodology:
-  1. Generate a clear-sky composite from a well-sampled dry year (2020)
-  2. Sample pure pixels at manually selected coordinates:
-     - Snow/ice: glacier core (confirmed by high NDSI and visual inspection)
-     - Rock: exposed moraine/bedrock (no vegetation, no snow)
-     - Vegetation: dense páramo/frailejón patch (clear NIR signature)
-  3. Extract mean reflectance across the 6 unmixing bands
-  4. Validate spectral separability between endmembers
-
 Output:
   - Prints calibrated endmember values ready to copy into script 01
   - data/endmember_calibration.json (documentation)
@@ -52,34 +40,27 @@ REF_YEAR = 2020
 # ============================================================================
 # 
 # Points identified from visual inspection of the study area.
-#   - Snow (3 points): glacier core, confirmed on glacier surface
-#   - Rock (3 points): exposed moraine/bedrock, no snow or vegetation
-#   - Vegetation (1 point): páramo at lower elevation
-#
-# Discarded: -71.00587, 8.5563 (rock/vegetation mix — unusable as endmember)
-# ============================================================================
+
 
 SAMPLE_POINTS = {
     'snow': [
-        # Glacier core - verified coordinates on glacier surface
+
         ee.Geometry.Point([-70.998033, 8.550038]),
         ee.Geometry.Point([-70.998314, 8.549986]),
         ee.Geometry.Point([-70.997716, 8.550018]),
     ],
     'rock': [
-        # Exposed rock/moraine - visually confirmed, no snow or vegetation
+   
         ee.Geometry.Point([-70.99696, 8.54831]),
         ee.Geometry.Point([-71.001101, 8.548985]),
         ee.Geometry.Point([-70.9988, 8.5433]),
     ],
     'vegetation': [
-        # Páramo - lower elevation, single confirmed pure point
-        # Using only 1 point; if std is needed, sample nearby pixels
         ee.Geometry.Point([-70.9901, 8.54051]),
     ]
 }
 
-# Processing AOI (same as script 01)
+# Processing AOI 
 aoi_processing = ee.Geometry.Polygon([[
     [-71.0079,   8.55679],
     [-70.988288, 8.55679],
@@ -92,7 +73,6 @@ aoi_processing = ee.Geometry.Polygon([[
 # GENERATE REFERENCE COMPOSITE
 # ============================================================================
 
-print(f'\nGenerating reference composite for {REF_YEAR}...')
 
 def mask_s2_scl(img):
     scl = img.select('SCL')
@@ -236,7 +216,7 @@ else:
 # ============================================================================
 
 print('\n' + '='*60)
-print('CALIBRATED ENDMEMBERS - COPY TO SCRIPT 01')
+print('CALIBRATED ENDMEMBERS')
 print('='*60 + '\n')
 
 if len(calibrated_endmembers) == 3:
@@ -271,5 +251,3 @@ if len(calibrated_endmembers) == 3:
     
 else:
     print('CALIBRATION INCOMPLETE - check sampling points')
-
-print('\nDone.')
