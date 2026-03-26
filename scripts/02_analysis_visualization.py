@@ -229,10 +229,10 @@ try:
                          f'Tasa anual: {loss_pct_img/5:.1f}%/año')
             ax.text(text_x, text_y_start - 0.20, stats_text, transform=ax.transAxes, fontsize=12,
                    color='white', ha='right', va='top', family='monospace',
-                   bbox=dict(boxstyle='round,pad=0.5', facecolor='black', alpha=0.75))
+                   bbox=dict(boxstyle='round,pad=0.5', facecolor='black', alpha=0.75, edgecolor='none' ))
             ax.legend(handles=[Line2D([0],[0],color='#e74c3c',lw=2,label='Glaciar 2020'),
                                Line2D([0],[0],color='#3498db',lw=2,label='Glaciar 2025')],
-                     loc='lower right', fontsize=11, frameon=True, facecolor='white', edgecolor='black', framealpha=0.9)
+                     loc='lower right', fontsize=11, frameon=True, facecolor='white', framealpha=0.9)
             ax.set_xlabel(''); ax.set_ylabel('')
             ax.set_title('Pico Humboldt - Venezuela', fontsize=18, fontweight='bold', pad=15)
             plt.tight_layout()
